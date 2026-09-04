@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verity.local/schemas/decision-record.schema.json",
+  "title": "Verity Decision Record",
+  "type": "object",
+  "required": ["decision_id", "run_id", "stage_id", "event_id", "decision", "reason", "operator_version"],
+  "properties": {
+    "decision_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "stage_id": { "type": "string" },
+    "event_id": { "type": "string" },
+    "decision": { "type": "string", "enum": ["accepted", "rejected", "modified", "review"] },
+    "reason": { "type": "string" },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "operator_version": { "type": "string" },
+    "input_snapshot": { "type": "string" },
+    "output_snapshot": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

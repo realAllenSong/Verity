@@ -1,0 +1,1 @@
+"""Verity FastAPI reference implementation."""

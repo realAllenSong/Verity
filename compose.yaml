@@ -1,0 +1,36 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      VERITY_ARTIFACT_ROOT: /workspace/artifacts
+      VERITY_SAMPLE_ROOT: /workspace/sample_data/raw
+    ports:
+      - "8000:8000"
+    volumes:
+      - verity-artifacts:/workspace/artifacts
+      - verity-samples:/workspace/sample_data/raw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+    environment:
+      VERITY_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  verity-artifacts:
+  verity-samples:

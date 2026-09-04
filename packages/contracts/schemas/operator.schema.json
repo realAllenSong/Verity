@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verity.local/schemas/operator.schema.json",
+  "title": "Verity Operator Contract",
+  "type": "object",
+  "required": ["name", "version", "category", "input_schema", "output_schema"],
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]+$" },
+    "version": { "type": "string" },
+    "category": {
+      "type": "string",
+      "enum": ["source", "transform", "filter", "scorer", "sampler", "human_review", "trainer", "evaluator", "exporter"]
+    },
+    "input_schema": { "type": "string" },
+    "output_schema": { "type": "string" },
+    "parameters": { "type": "object", "additionalProperties": true },
+    "runtime": {
+      "type": "object",
+      "required": ["kind", "entrypoint"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["python", "container", "http"] },
+        "entrypoint": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

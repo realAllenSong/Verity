@@ -1,0 +1,704 @@
+{
+  "project": {
+    "id": "developer-workflow-signals",
+    "name": "Developer workflow signals",
+    "description": "Turn noisy work events into reviewable signals."
+  },
+  "generated_at": "2026-08-29T09:14:00+00:00",
+  "run_id": "run_2026-08-29_0914",
+  "sources": [
+    {
+      "id": "calendar",
+      "label": "Calendar",
+      "count": 426,
+      "state": "healthy"
+    },
+    {
+      "id": "claude_code",
+      "label": "Claude Code",
+      "count": 427,
+      "state": "healthy"
+    },
+    {
+      "id": "codex",
+      "label": "Codex",
+      "count": 428,
+      "state": "healthy"
+    },
+    {
+      "id": "confluence",
+      "label": "Confluence",
+      "count": 427,
+      "state": "healthy"
+    },
+    {
+      "id": "github",
+      "label": "GitHub",
+      "count": 427,
+      "state": "healthy"
+    },
+    {
+      "id": "jira",
+      "label": "Jira",
+      "count": 427,
+      "state": "healthy"
+    },
+    {
+      "id": "outlook",
+      "label": "Outlook",
+      "count": 426,
+      "state": "healthy"
+    },
+    {
+      "id": "powerpoint",
+      "label": "PowerPoint",
+      "count": 427,
+      "state": "healthy"
+    },
+    {
+      "id": "slack",
+      "label": "Slack",
+      "count": 427,
+      "state": "healthy"
+    }
+  ],
+  "stages": [
+    {
+      "id": "raw",
+      "label": "Raw",
+      "count": 3842,
+      "input_count": 3842,
+      "description": "Immutable connector payloads",
+      "operator": "source_union_v1",
+      "status": "complete"
+    },
+    {
+      "id": "normalize",
+      "label": "Normalize",
+      "count": 3611,
+      "input_count": 3842,
+      "description": "Canonical fields and deduplication",
+      "operator": "normalize_event_v2",
+      "status": "complete"
+    },
+    {
+      "id": "privacy",
+      "label": "Privacy",
+      "count": 3276,
+      "input_count": 3611,
+      "description": "Local redaction and policy quarantine",
+      "operator": "local_privacy_v2",
+      "status": "complete"
+    },
+    {
+      "id": "quality",
+      "label": "Quality",
+      "count": 2914,
+      "input_count": 3276,
+      "description": "Completeness and timestamp checks",
+      "operator": "quality_gate_v2",
+      "status": "complete"
+    },
+    {
+      "id": "signals",
+      "label": "Extract",
+      "count": 1086,
+      "input_count": 2914,
+      "description": "Reviewable workflow evidence",
+      "operator": "correction_signal_v3",
+      "status": "complete"
+    },
+    {
+      "id": "review",
+      "label": "Review",
+      "count": 42,
+      "input_count": 1086,
+      "description": "Uncertain records only",
+      "operator": "review_queue_v1",
+      "status": "review"
+    },
+    {
+      "id": "curated",
+      "label": "Ready",
+      "count": 1044,
+      "input_count": 1086,
+      "description": "Manager-safe, model-ready output",
+      "operator": "publish_snapshot_v1",
+      "status": "complete"
+    }
+  ],
+  "records": [
+    {
+      "id": "evt_01089",
+      "source": "codex",
+      "source_label": "Codex",
+      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
+      "extracted_signal": "Correction: preserve the API contract",
+      "signal_type": "correction",
+      "confidence": 0.95,
+      "decision": "accepted",
+      "reason": "An explicit stop or correction changed the agent path.",
+      "occurred_at": "2026-08-15T17:51:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 7
+    },
+    {
+      "id": "evt_01514",
+      "source": "github",
+      "source_label": "GitHub",
+      "raw_event": "PR review requested missing regression tests for null tenant IDs and error handling before merge.",
+      "extracted_signal": "Verification gap: missing regression tests",
+      "signal_type": "verification_gap",
+      "confidence": 0.95,
+      "decision": "accepted",
+      "reason": "Review evidence identified a missing verification step.",
+      "occurred_at": "2026-08-21T08:26:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 7
+    },
+    {
+      "id": "evt_00732",
+      "source": "jira",
+      "source_label": "Jira",
+      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
+      "extracted_signal": "Dependency blocker: upstream schema change",
+      "signal_type": "dependency_blocker",
+      "confidence": 0.62,
+      "decision": "review",
+      "reason": "A tracked dependency prevented the task from advancing.",
+      "occurred_at": "2026-08-11T00:48:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 1
+    },
+    {
+      "id": "evt_00733",
+      "source": "slack",
+      "source_label": "Slack",
+      "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
+      "extracted_signal": "Knowledge need: approved API guidance",
+      "signal_type": "knowledge_need",
+      "confidence": 0.62,
+      "decision": "review",
+      "reason": "A repeated implementation question maps to an approved capability.",
+      "occurred_at": "2026-08-11T01:07:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 1
+    },
+    {
+      "id": "evt_01742",
+      "source": "outlook",
+      "source_label": "Outlook",
+      "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.93,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-24T08:38:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 5
+    },
+    {
+      "id": "evt_00735",
+      "source": "calendar",
+      "source_label": "Calendar",
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.62,
+      "decision": "review",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-11T01:45:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 1
+    },
+    {
+      "id": "evt_01144",
+      "source": "claude_code",
+      "source_label": "Claude Code",
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.95,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-16T11:16:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 7
+    },
+    {
+      "id": "evt_01627",
+      "source": "confluence",
+      "source_label": "Confluence",
+      "raw_event": "Confluence notes show that engineers re-entered the Jira requirements in another coding session for the same ta…",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
+      "confidence": 0.93,
+      "decision": "accepted",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-22T20:13:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 5
+    },
+    {
+      "id": "evt_01574",
+      "source": "powerpoint",
+      "source_label": "PowerPoint",
+      "raw_event": "A PowerPoint delivery review slide flags that the dataset delivery slipped after an incompatible schema revisio…",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.95,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-22T03:26:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 7
+    },
+    {
+      "id": "evt_00873",
+      "source": "codex",
+      "source_label": "Codex",
+      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
+      "extracted_signal": "Correction: preserve the API contract",
+      "signal_type": "correction",
+      "confidence": 0.94,
+      "decision": "accepted",
+      "reason": "An explicit stop or correction changed the agent path.",
+      "occurred_at": "2026-08-12T21:27:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 6
+    },
+    {
+      "id": "evt_01658",
+      "source": "github",
+      "source_label": "GitHub",
+      "raw_event": "PR review requested missing regression tests for null tenant IDs and error handling before merge.",
+      "extracted_signal": "Verification gap: missing regression tests",
+      "signal_type": "verification_gap",
+      "confidence": 0.94,
+      "decision": "accepted",
+      "reason": "Review evidence identified a missing verification step.",
+      "occurred_at": "2026-08-23T06:02:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 6
+    },
+    {
+      "id": "evt_01740",
+      "source": "jira",
+      "source_label": "Jira",
+      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
+      "extracted_signal": "Dependency blocker: upstream schema change",
+      "signal_type": "dependency_blocker",
+      "confidence": 0.91,
+      "decision": "accepted",
+      "reason": "A tracked dependency prevented the task from advancing.",
+      "occurred_at": "2026-08-24T08:00:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 3
+    },
+    {
+      "id": "evt_01741",
+      "source": "slack",
+      "source_label": "Slack",
+      "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
+      "extracted_signal": "Knowledge need: approved API guidance",
+      "signal_type": "knowledge_need",
+      "confidence": 0.92,
+      "decision": "accepted",
+      "reason": "A repeated implementation question maps to an approved capability.",
+      "occurred_at": "2026-08-24T08:19:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 4
+    },
+    {
+      "id": "evt_01526",
+      "source": "outlook",
+      "source_label": "Outlook",
+      "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.92,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-21T12:14:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 4
+    },
+    {
+      "id": "evt_01743",
+      "source": "calendar",
+      "source_label": "Calendar",
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.94,
+      "decision": "accepted",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-24T08:57:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 6
+    },
+    {
+      "id": "evt_01288",
+      "source": "claude_code",
+      "source_label": "Claude Code",
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.94,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-18T08:52:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 6
+    },
+    {
+      "id": "evt_01771",
+      "source": "confluence",
+      "source_label": "Confluence",
+      "raw_event": "Confluence notes show that engineers re-entered the Jira requirements in another coding session for the same ta…",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
+      "confidence": 0.92,
+      "decision": "accepted",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-24T17:49:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 4
+    },
+    {
+      "id": "evt_01214",
+      "source": "powerpoint",
+      "source_label": "PowerPoint",
+      "raw_event": "A PowerPoint delivery review slide flags that the dataset delivery slipped after an incompatible schema revisio…",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.95,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-17T09:26:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 7
+    },
+    {
+      "id": "evt_01737",
+      "source": "codex",
+      "source_label": "Codex",
+      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
+      "extracted_signal": "Correction: preserve the API contract",
+      "signal_type": "correction",
+      "confidence": 0.88,
+      "decision": "accepted",
+      "reason": "An explicit stop or correction changed the agent path.",
+      "occurred_at": "2026-08-24T07:03:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 5
+    },
+    {
+      "id": "evt_01442",
+      "source": "github",
+      "source_label": "GitHub",
+      "raw_event": "PR review requested missing regression tests for null tenant IDs and error handling before merge.",
+      "extracted_signal": "Verification gap: missing regression tests",
+      "signal_type": "verification_gap",
+      "confidence": 0.93,
+      "decision": "accepted",
+      "reason": "Review evidence identified a missing verification step.",
+      "occurred_at": "2026-08-20T09:38:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 5
+    },
+    {
+      "id": "evt_01524",
+      "source": "jira",
+      "source_label": "Jira",
+      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
+      "extracted_signal": "Dependency blocker: upstream schema change",
+      "signal_type": "dependency_blocker",
+      "confidence": 0.9,
+      "decision": "accepted",
+      "reason": "A tracked dependency prevented the task from advancing.",
+      "occurred_at": "2026-08-21T11:36:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 7
+    },
+    {
+      "id": "evt_01525",
+      "source": "slack",
+      "source_label": "Slack",
+      "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
+      "extracted_signal": "Knowledge need: approved API guidance",
+      "signal_type": "knowledge_need",
+      "confidence": 0.91,
+      "decision": "accepted",
+      "reason": "A repeated implementation question maps to an approved capability.",
+      "occurred_at": "2026-08-21T11:55:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 3
+    },
+    {
+      "id": "evt_01310",
+      "source": "outlook",
+      "source_label": "Outlook",
+      "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.91,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-18T15:50:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 3
+    },
+    {
+      "id": "evt_01527",
+      "source": "calendar",
+      "source_label": "Calendar",
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.93,
+      "decision": "accepted",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-21T12:33:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 5
+    },
+    {
+      "id": "evt_00928",
+      "source": "claude_code",
+      "source_label": "Claude Code",
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.94,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-13T14:52:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 6
+    },
+    {
+      "id": "evt_01411",
+      "source": "confluence",
+      "source_label": "Confluence",
+      "raw_event": "Confluence notes show that engineers re-entered the Jira requirements in another coding session for the same ta…",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
+      "confidence": 0.92,
+      "decision": "accepted",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-19T23:49:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 4
+    },
+    {
+      "id": "evt_01358",
+      "source": "powerpoint",
+      "source_label": "PowerPoint",
+      "raw_event": "A PowerPoint delivery review slide flags that the dataset delivery slipped after an incompatible schema revisio…",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.94,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-19T07:02:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 6
+    },
+    {
+      "id": "evt_01521",
+      "source": "codex",
+      "source_label": "Codex",
+      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
+      "extracted_signal": "Correction: preserve the API contract",
+      "signal_type": "correction",
+      "confidence": 0.87,
+      "decision": "accepted",
+      "reason": "An explicit stop or correction changed the agent path.",
+      "occurred_at": "2026-08-21T10:39:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 4
+    },
+    {
+      "id": "evt_01586",
+      "source": "github",
+      "source_label": "GitHub",
+      "raw_event": "PR review requested missing regression tests for null tenant IDs and error handling before merge.",
+      "extracted_signal": "Verification gap: missing regression tests",
+      "signal_type": "verification_gap",
+      "confidence": 0.92,
+      "decision": "accepted",
+      "reason": "Review evidence identified a missing verification step.",
+      "occurred_at": "2026-08-22T07:14:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 4
+    },
+    {
+      "id": "evt_01308",
+      "source": "jira",
+      "source_label": "Jira",
+      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
+      "extracted_signal": "Dependency blocker: upstream schema change",
+      "signal_type": "dependency_blocker",
+      "confidence": 0.89,
+      "decision": "accepted",
+      "reason": "A tracked dependency prevented the task from advancing.",
+      "occurred_at": "2026-08-18T15:12:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 6
+    },
+    {
+      "id": "evt_01669",
+      "source": "slack",
+      "source_label": "Slack",
+      "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
+      "extracted_signal": "Knowledge need: approved API guidance",
+      "signal_type": "knowledge_need",
+      "confidence": 0.9,
+      "decision": "accepted",
+      "reason": "A repeated implementation question maps to an approved capability.",
+      "occurred_at": "2026-08-23T09:31:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 7
+    },
+    {
+      "id": "evt_01670",
+      "source": "outlook",
+      "source_label": "Outlook",
+      "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.91,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-23T09:50:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 3
+    },
+    {
+      "id": "evt_01671",
+      "source": "calendar",
+      "source_label": "Calendar",
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.92,
+      "decision": "accepted",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-23T10:09:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 4
+    },
+    {
+      "id": "evt_01072",
+      "source": "claude_code",
+      "source_label": "Claude Code",
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.93,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-15T12:28:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 5
+    },
+    {
+      "id": "evt_01555",
+      "source": "confluence",
+      "source_label": "Confluence",
+      "raw_event": "Confluence notes show that engineers re-entered the Jira requirements in another coding session for the same ta…",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
+      "confidence": 0.91,
+      "decision": "accepted",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-21T21:25:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 3
+    },
+    {
+      "id": "evt_01142",
+      "source": "powerpoint",
+      "source_label": "PowerPoint",
+      "raw_event": "A PowerPoint delivery review slide flags that the dataset delivery slipped after an incompatible schema revisio…",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.93,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-16T10:38:00+00:00",
+      "privacy": "manager-safe summary",
+      "evidence_count": 5
+    }
+  ],
+  "decision_breakdown": {
+    "accepted": 1044,
+    "review": 42,
+    "rejected": 0
+  },
+  "step_settings": {
+    "operator": "correction_signal_v3",
+    "version": "3",
+    "policy": "local-first redaction",
+    "threshold": 0.78,
+    "code_version": "demo-a7c9f2b",
+    "input_snapshot": "quality_2026-08-29_0914",
+    "output_snapshot": "signals_2026-08-29_0914",
+    "run_id": "run_2026-08-29_0914"
+  },
+  "signal_distribution": {
+    "correction": 136,
+    "delivery_risk": 136,
+    "verification_gap": 136,
+    "context_repetition": 136,
+    "coordination_overhead": 135,
+    "knowledge_need": 136,
+    "agent_steer": 135,
+    "dependency_blocker": 136
+  },
+  "schema_before": [
+    {
+      "field": "content",
+      "type": "string",
+      "policy": "local only"
+    },
+    {
+      "field": "metadata_json",
+      "type": "json",
+      "policy": "source native"
+    },
+    {
+      "field": "actor",
+      "type": "string",
+      "policy": "pseudonymized"
+    }
+  ],
+  "schema_after": [
+    {
+      "field": "extracted_signal",
+      "type": "string",
+      "policy": "manager safe"
+    },
+    {
+      "field": "signal_type",
+      "type": "enum",
+      "policy": "shareable"
+    },
+    {
+      "field": "confidence",
+      "type": "float",
+      "policy": "shareable"
+    },
+    {
+      "field": "reason",
+      "type": "string",
+      "policy": "shareable"
+    }
+  ],
+  "copy_policy": {
+    "raw": "Raw prompts, responses, files, and messages stay local.",
+    "cloud": "Only pseudonymized conclusions, counts, and evidence strength are publishable."
+  }
+}
