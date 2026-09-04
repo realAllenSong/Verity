@@ -14,15 +14,11 @@ describe("demo workspace contract", () => {
     });
   });
 
-  it("contains believable examples from every synthetic connector", () => {
-    expect(new Set(workspace.records.map((record) => record.source))).toEqual(
-      new Set(workspace.sources.map((source) => source.id)),
-    );
-    expect(workspace.records.find((record) => record.source === "github")?.signal_type).toBe(
-      "verification_gap",
-    );
-    expect(workspace.records.find((record) => record.source === "codex")?.signal_type).toBe(
-      "correction",
-    );
+  it("models independently traceable batches with generic records", () => {
+    expect(workspace.batches).toHaveLength(6);
+    expect(workspace.dataset.record_count).toBe(3842);
+    expect(workspace.records.every((record) => record.batch_id.startsWith("batch_"))).toBe(true);
+    expect(workspace.records.every((record) => Object.keys(record.before_fields).length > 0)).toBe(true);
+    expect(new Set(workspace.records.map((record) => record.signal_type)).size).toBeGreaterThan(5);
   });
 });

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 from typing import Any
 
 import duckdb
+from pydantic import ValidationError
 
-from .models import ReviewUpdate, WorkspaceResponse
+from .models import BatchCreate, BatchStageResponse, BatchSummary, ReviewUpdate, WorkspaceResponse
 from .pipeline import RUN_ID, run_pipeline
 from .sample_generator import generate_noisy_fixtures
 from .settings import Settings
@@ -29,8 +32,14 @@ class WorkspaceStore:
                 return self._workspace
             workspace_path = self.run_dir / "workspace.json"
             if workspace_path.exists():
-                self._workspace = WorkspaceResponse.model_validate_json(workspace_path.read_text())
-                return self._workspace
+                try:
+                    self._workspace = WorkspaceResponse.model_validate_json(
+                        workspace_path.read_text()
+                    )
+                    return self._workspace
+                except ValidationError:
+                    # Generated projections are disposable and rebuilt after contract upgrades.
+                    pass
             return self.run()
 
     def run(self) -> WorkspaceResponse:
@@ -80,6 +89,50 @@ class WorkspaceStore:
                 )
             self._workspace = workspace
             return workspace
+
+    def stage_batch(self, dataset_id: str, request: BatchCreate) -> BatchStageResponse:
+        """Persist an input batch as generic envelopes without running a recipe implicitly."""
+        with self._lock:
+            workspace = self.ensure().model_copy(deep=True)
+            if dataset_id != workspace.dataset.id:
+                raise KeyError(dataset_id)
+            now = datetime.now(UTC)
+            digest = hashlib.sha1(f"{request.filename}:{now.isoformat()}".encode()).hexdigest()[:8]
+            batch_id = f"batch_{now:%Y_%m_%d}_{digest}"
+            fields = sorted({str(key) for record in request.records for key in record})
+            upload_dir = self.settings.artifacts / "staged"
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            target = upload_dir / f"{batch_id}.jsonl"
+            with target.open("w", encoding="utf-8") as handle:
+                for index, payload in enumerate(request.records):
+                    envelope = {
+                        "record_id": f"rec_{digest}_{index:06d}",
+                        "dataset_id": dataset_id,
+                        "batch_id": batch_id,
+                        "ingested_at": now.isoformat(),
+                        "payload": payload,
+                        "metadata": {"filename": Path(request.filename).name, "state": "staged"},
+                    }
+                    handle.write(json.dumps(envelope, ensure_ascii=False, sort_keys=True) + "\n")
+
+            batch = BatchSummary(
+                id=batch_id,
+                filename=Path(request.filename).name,
+                added_at=now.isoformat(),
+                record_count=len(request.records),
+                field_count=len(fields),
+                state="staged",
+            )
+            workspace.batches.insert(0, batch)
+            workspace.dataset.batch_count += 1
+            workspace.dataset.record_count += len(request.records)
+            workspace.dataset.updated_at = now.isoformat()
+            self._workspace = workspace
+            return BatchStageResponse(
+                batch=batch,
+                sample_fields=fields[:12],
+                message="Batch staged. Map its fields before the next run.",
+            )
 
     def stage_preview(self, stage_id: str, limit: int = 20) -> list[dict[str, Any]]:
         allowed = {stage.id for stage in self.ensure().stages}

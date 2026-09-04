@@ -1,7 +1,6 @@
-import { CaretDownIcon, CheckCircleIcon, QuestionIcon, XCircleIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CaretRightIcon, CheckCircleIcon, QuestionIcon, XCircleIcon } from "@phosphor-icons/react";
 import { DropdownMenu } from "@radix-ui/themes";
 import type { Decision, EvidenceRecord } from "@/lib/contracts";
-import { SourceMark } from "./source-mark";
 
 interface RecordTableProps {
   records: EvidenceRecord[];
@@ -28,7 +27,7 @@ export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecisio
     return (
       <div className="empty-state">
         <strong>No records match this view.</strong>
-        <span>Choose another source or clear the active filter.</span>
+        <span>Choose another stage or clear the active filter.</span>
       </div>
     );
   }
@@ -38,10 +37,10 @@ export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecisio
       <table className="record-table">
         <thead>
           <tr>
-            <th>Source</th>
-            <th>Input</th>
-            <th>Output</th>
-            <th>Confidence</th>
+            <th>Record</th>
+            <th>Before</th>
+            <th>After</th>
+            <th>Quality</th>
             <th>Decision</th>
           </tr>
         </thead>
@@ -57,17 +56,12 @@ export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecisio
               }}
             >
               <td>
-                <span className="source-cell">
-                  <SourceMark source={record.source} />
-                  {record.source_label}
-                </span>
+                <span className="record-id"><CaretRightIcon size={13} /><code>{record.id.replace("evt_", "rec_")}</code></span>
               </td>
-              <td className="record-input">{record.raw_event}</td>
-              <td>{record.extracted_signal}</td>
+              <td><FieldPreview fields={record.before_fields} /></td>
+              <td><FieldPreview fields={record.after_fields} /></td>
               <td>
-                <span className="confidence" data-level={record.confidence < 0.78 ? "review" : "ready"}>
-                  {record.confidence.toFixed(2)}
-                </span>
+                <span className="quality-cell"><code>{record.quality_score.toFixed(2)}</code><i><b style={{ width: `${record.quality_score * 100}%` }} /></i></span>
               </td>
               <td onClick={(event) => event.stopPropagation()}>
                 <DropdownMenu.Root>
@@ -91,5 +85,16 @@ export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecisio
         </tbody>
       </table>
     </div>
+  );
+}
+
+function FieldPreview({ fields }: { fields: Record<string, string> }) {
+  return (
+    <span className="field-preview">
+      {Object.entries(fields).slice(0, 2).map(([key, value]) => (
+        <code key={key}><b>{key}</b>: {value}</code>
+      ))}
+      {Object.keys(fields).length > 2 ? <small>+{Object.keys(fields).length - 2}</small> : null}
+    </span>
   );
 }

@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import type { PipelineStage } from "@/lib/contracts";
 
 interface PipelineFlowProps {
@@ -8,46 +7,33 @@ interface PipelineFlowProps {
 }
 
 export function PipelineFlow({ stages, selectedStage, onSelect }: PipelineFlowProps) {
-  const largest = Math.max(...stages.map((stage) => stage.count));
+  const core = stages.filter((stage) => !["review", "curated"].includes(stage.id));
+  const review = stages.find((stage) => stage.id === "review");
   const ready = stages.find((stage) => stage.id === "curated");
 
   return (
     <div className="pipeline-flow" aria-label="Pipeline stages">
-      <div className="pipeline-stage-grid">
-        {stages.map((stage) => (
-          <button
-            key={stage.id}
-            className="pipeline-stage"
-            data-selected={selectedStage === stage.id}
-            type="button"
-            onClick={() => onSelect(stage.id)}
-            aria-pressed={selectedStage === stage.id}
-            data-status={stage.status}
-          >
-            <span>{stage.label}</span>
-            <strong>{stage.count.toLocaleString()}</strong>
-          </button>
+      <div className="pipeline-core">
+        {core.map((stage, index) => (
+          <div className="pipeline-step-wrap" key={stage.id}>
+            <button className="pipeline-stage" data-selected={selectedStage === stage.id} type="button" onClick={() => onSelect(stage.id)} aria-pressed={selectedStage === stage.id}>
+              <span>{stage.label}</span><strong>{stage.count.toLocaleString()}</strong>
+            </button>
+            {index < core.length - 1 ? <i aria-hidden="true" /> : null}
+          </div>
         ))}
       </div>
-      <div className="throughput-grid" aria-hidden="true">
-        {stages.map((stage, index) => {
-          const next = stages[index + 1] ?? stage;
-          const isReviewBranch = stage.id === "review";
-          const flowCount = isReviewBranch && ready ? ready.count : stage.count;
-          const nextCount = next.id === "review" && ready ? ready.count : next.count;
-          const from = Math.max(4, Math.round((flowCount / largest) * 54));
-          const to = Math.max(4, Math.round((nextCount / largest) * 54));
-          const style = { "--flow-from": `${from}px`, "--flow-to": `${to}px` } as CSSProperties;
-          return (
-            <div
-              key={stage.id}
-              className="throughput-segment"
-              data-stage={stage.id}
-              data-selected={selectedStage === stage.id}
-              style={style}
-            />
-          );
-        })}
+      <div className="pipeline-branch" aria-label="Pipeline results">
+        {review ? (
+          <button className="branch-stage review-branch" data-selected={selectedStage === review.id} type="button" onClick={() => onSelect(review.id)}>
+            <span>Review</span><strong>{review.count.toLocaleString()}</strong>
+          </button>
+        ) : null}
+        {ready ? (
+          <button className="branch-stage ready-branch" data-selected={selectedStage === ready.id} type="button" onClick={() => onSelect(ready.id)}>
+            <span>Ready</span><strong>{ready.count.toLocaleString()}</strong>
+          </button>
+        ) : null}
       </div>
     </div>
   );

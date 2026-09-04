@@ -1,50 +1,34 @@
+"use client";
+
+import { useRef, useState } from "react";
 import {
-  ArrowSquareOutIcon,
+  ArrowRightIcon,
   CheckCircleIcon,
-  DownloadSimpleIcon,
+  FileArrowUpIcon,
+  FileCsvIcon,
+  FileJsIcon,
   LockKeyIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { Dialog } from "@radix-ui/themes";
-import type { EvidenceRecord, PipelineStage, SourceSummary, WorkspaceData } from "@/lib/contracts";
-import { SourceMark } from "./source-mark";
+import type { BatchSummary, EvidenceRecord, PipelineStage, WorkspaceData } from "@/lib/contracts";
 
-export type DialogName = "sources" | "recipe" | "step" | "record" | "review" | "export" | null;
+export type DialogName = "record" | "step" | "add-data" | null;
 
-interface WorkspaceDialogsProps {
-  active: DialogName;
-  onChange: (dialog: DialogName) => void;
-  workspace: WorkspaceData;
-  stage: PipelineStage;
-  record: EvidenceRecord | null;
-  onAccept: (recordId: string) => void;
-  onDownload: () => void;
-}
-
-function ModalShell({
-  open,
-  onOpenChange,
-  title,
-  description,
-  children,
-}: {
+function ModalShell({ open, onOpenChange, title, description, children, width = "760px" }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
   children: React.ReactNode;
+  width?: string;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content className="verity-dialog" maxWidth="720px">
+      <Dialog.Content className="verity-dialog" maxWidth={width}>
         <div className="dialog-heading">
-          <div>
-            <Dialog.Title>{title}</Dialog.Title>
-            <Dialog.Description>{description}</Dialog.Description>
-          </div>
-          <Dialog.Close>
-            <button className="icon-button" type="button" aria-label="Close dialog"><XIcon size={18} /></button>
-          </Dialog.Close>
+          <div><Dialog.Title>{title}</Dialog.Title><Dialog.Description>{description}</Dialog.Description></div>
+          <Dialog.Close><button className="icon-button" type="button" aria-label="Close"><XIcon size={18} /></button></Dialog.Close>
         </div>
         {children}
       </Dialog.Content>
@@ -52,131 +36,113 @@ function ModalShell({
   );
 }
 
-function SourcesDialog({ sources, open, onOpenChange }: { sources: SourceSummary[]; open: boolean; onOpenChange: (open: boolean) => void }) {
+function parseCsv(text: string): Record<string, unknown>[] {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((item) => item.trim());
+  return lines.slice(1).map((line) => Object.fromEntries(headers.map((header, index) => [header, line.split(",")[index]?.trim() ?? ""])));
+}
+
+async function parseFile(file: File): Promise<Record<string, unknown>[]> {
+  const text = await file.text();
+  if (file.name.endsWith(".jsonl")) return text.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>);
+  if (file.name.endsWith(".csv")) return parseCsv(text);
+  const parsed = JSON.parse(text) as unknown;
+  if (Array.isArray(parsed)) return parsed as Record<string, unknown>[];
+  return [parsed as Record<string, unknown>];
+}
+
+export function AddDataDialog({ open, onOpenChange, datasetId, onStaged }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  datasetId: string;
+  onStaged: (batch: BatchSummary) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [error, setError] = useState("");
+  const [state, setState] = useState<"idle" | "parsing" | "staging" | "done">("idle");
+  const fields = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+
+  async function choose(nextFile: File | undefined) {
+    if (!nextFile) return;
+    setFile(nextFile); setState("parsing"); setError("");
+    try {
+      const parsed = await parseFile(nextFile);
+      if (!parsed.length) throw new Error("No records found");
+      setRows(parsed.slice(0, 10_000)); setState("idle");
+    } catch {
+      setRows([]); setError("This file could not be parsed. Use JSON, JSONL, or a simple CSV."); setState("idle");
+    }
+  }
+
+  async function stage() {
+    if (!file || !rows.length) return;
+    setState("staging");
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    try {
+      if (apiUrl) {
+        const response = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/batches`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, records: rows }),
+        });
+        if (!response.ok) throw new Error("stage failed");
+        const payload = await response.json() as { batch: BatchSummary };
+        onStaged(payload.batch);
+      } else {
+        onStaged({ id: `batch_${Date.now()}`, filename: file.name, added_at: new Date().toISOString(), record_count: rows.length, field_count: fields.length, state: "staged" });
+      }
+      setState("done");
+    } catch {
+      setError("The local service is unavailable. Start the API and try again."); setState("idle");
+    }
+  }
+
   return (
-    <ModalShell open={open} onOpenChange={onOpenChange} title="Sources" description="Every connector maps into the same raw-event contract.">
-      <div className="dialog-list source-dialog-list">
-        {sources.map((source) => (
-          <div className="dialog-list-row" key={source.id}>
-            <span className="source-cell"><SourceMark source={source.id} /><strong>{source.label}</strong></span>
-            <span className="row-detail">{source.count.toLocaleString()} events</span>
-            <span className="status-word"><CheckCircleIcon size={16} weight="fill" /> Healthy</span>
+    <ModalShell open={open} onOpenChange={onOpenChange} title="Add data" description="Stage one batch now. Add more batches whenever they arrive." width="680px">
+      <div className="upload-body">
+        {!file ? (
+          <button className="upload-dropzone" type="button" onClick={() => inputRef.current?.click()}>
+            <FileArrowUpIcon size={28} /><strong>Choose a data file</strong><span>JSON, JSONL, or CSV · up to 10,000 records in this preview</span>
+          </button>
+        ) : (
+          <div className="file-preview">
+            <div className="file-preview-heading"><span className="file-glyph">{file.name.endsWith(".csv") ? <FileCsvIcon size={22} /> : <FileJsIcon size={22} />}</span><span><strong>{file.name}</strong><small>{state === "parsing" ? "Reading…" : `${rows.length.toLocaleString()} records · ${fields.length} fields`}</small></span><button type="button" onClick={() => { setFile(null); setRows([]); }}>Replace</button></div>
+            {rows.length ? <div className="field-list">{fields.slice(0, 8).map((field) => <code key={field}>{field}</code>)}{fields.length > 8 ? <small>+{fields.length - 8}</small> : null}</div> : null}
+            <div className="upload-boundary"><LockKeyIcon size={17} /><span>The file stays in this local workspace. Staging does not run a recipe or publish an output.</span></div>
           </div>
-        ))}
+        )}
+        <input ref={inputRef} hidden type="file" accept=".json,.jsonl,.csv,application/json,text/csv" onChange={(event) => void choose(event.target.files?.[0])} />
+        {error ? <p className="form-error">{error}</p> : null}
       </div>
-      <div className="dialog-note">
-        <LockKeyIcon size={18} />
-        <span>Source adapters are pluggable. These nine connectors are synthetic examples, not a fixed product boundary.</span>
+      <div className="dialog-footer">
+        <Dialog.Close><button className="secondary-button" type="button">Cancel</button></Dialog.Close>
+        <button className="primary-button" type="button" disabled={!rows.length || state === "staging" || state === "done"} onClick={() => void stage()}>
+          {state === "done" ? <><CheckCircleIcon size={17} /> Staged</> : <>Stage batch <ArrowRightIcon size={16} /></>}
+        </button>
       </div>
     </ModalShell>
   );
 }
 
-function RecipeDialog({ stages, open, onOpenChange }: { stages: PipelineStage[]; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function RecordDialog({ record, open, onOpenChange }: { record: EvidenceRecord | null; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <ModalShell open={open} onOpenChange={onOpenChange} title="Recipe" description="A versioned sequence of operators and review gates.">
-      <div className="recipe-dialog-list">
-        {stages.map((stage, index) => (
-          <div className="recipe-dialog-row" key={stage.id}>
-            <span className="recipe-index">{String(index + 1).padStart(2, "0")}</span>
-            <span><strong>{stage.label}</strong><small>{stage.description}</small></span>
-            <code>{stage.operator}</code>
-            <strong className="row-count">{stage.count.toLocaleString()}</strong>
-          </div>
-        ))}
-      </div>
+    <ModalShell open={open} onOpenChange={onOpenChange} title={record ? record.id.replace("evt_", "rec_") : "Record"} description="Transformation and decision evidence for one record." width="820px">
+      {record ? <div className="record-dialog-body">
+        <div className="record-compare"><div><span>Before</span><pre>{JSON.stringify(record.before_fields, null, 2)}</pre></div><div className="proposed"><span>After</span><pre>{JSON.stringify(record.after_fields, null, 2)}</pre></div></div>
+        <dl className="property-list compact"><div><dt>Reason</dt><dd>{record.reason}</dd></div><div><dt>Confidence</dt><dd>{record.confidence.toFixed(2)}</dd></div><div><dt>Quality</dt><dd>{record.quality_score.toFixed(2)}</dd></div><div><dt>Batch</dt><dd><code>{record.batch_id}</code></dd></div></dl>
+        <div className="dialog-note"><LockKeyIcon size={18} /><span>{record.privacy}. Optional origin metadata is not required by the platform.</span></div>
+      </div> : null}
     </ModalShell>
   );
 }
 
-function StepDialog({ workspace, stage, open, onOpenChange }: { workspace: WorkspaceData; stage: PipelineStage; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function StepDialog({ workspace, stage, open, onOpenChange }: { workspace: WorkspaceData; stage: PipelineStage; open: boolean; onOpenChange: (open: boolean) => void }) {
   const retained = stage.input_count ? (stage.count / stage.input_count) * 100 : 100;
   return (
     <ModalShell open={open} onOpenChange={onOpenChange} title={stage.label} description={stage.description}>
-      <div className="step-summary">
-        <div><span>Input</span><strong>{stage.input_count.toLocaleString()}</strong></div>
-        <div><span>Output</span><strong>{stage.count.toLocaleString()}</strong></div>
-        <div><span>Retained</span><strong>{retained.toFixed(1)}%</strong></div>
-      </div>
-      <dl className="property-list">
-        <div><dt>Operator</dt><dd><code>{stage.operator}</code></dd></div>
-        <div><dt>Operator version</dt><dd>{workspace.step_settings.version}</dd></div>
-        <div><dt>Policy</dt><dd>{workspace.step_settings.policy}</dd></div>
-        <div><dt>Confidence threshold</dt><dd>{workspace.step_settings.threshold}</dd></div>
-        <div><dt>Input snapshot</dt><dd><code>{workspace.step_settings.input_snapshot}</code></dd></div>
-        <div><dt>Run</dt><dd><code>{workspace.run_id}</code></dd></div>
-      </dl>
-      <button className="text-action" type="button">View lineage <ArrowSquareOutIcon size={16} /></button>
+      <div className="step-summary"><div><span>Input</span><strong>{stage.input_count.toLocaleString()}</strong></div><div><span>Output</span><strong>{stage.count.toLocaleString()}</strong></div><div><span>Retained</span><strong>{retained.toFixed(1)}%</strong></div></div>
+      <dl className="property-list"><div><dt>Operator</dt><dd><code>{stage.operator}</code></dd></div><div><dt>Version</dt><dd>{workspace.step_settings.version}</dd></div><div><dt>Policy</dt><dd>{workspace.step_settings.policy}</dd></div><div><dt>Threshold</dt><dd>{workspace.step_settings.threshold}</dd></div><div><dt>Snapshot</dt><dd><code>{workspace.step_settings.output_snapshot}</code></dd></div></dl>
     </ModalShell>
-  );
-}
-
-function RecordDialog({ record, open, onOpenChange }: { record: EvidenceRecord | null; open: boolean; onOpenChange: (open: boolean) => void }) {
-  return (
-    <ModalShell open={open} onOpenChange={onOpenChange} title="Record evidence" description="A local-safe explanation of one pipeline decision.">
-      {record ? (
-        <div className="record-dialog-body">
-          <div className="record-compare">
-            <div><span>Input</span><p>{record.raw_event}</p></div>
-            <div><span>Output</span><p>{record.extracted_signal}</p></div>
-          </div>
-          <dl className="property-list compact">
-            <div><dt>Source</dt><dd>{record.source_label}</dd></div>
-            <div><dt>Confidence</dt><dd>{record.confidence.toFixed(2)}</dd></div>
-            <div><dt>Evidence</dt><dd>{record.evidence_count} matched events</dd></div>
-            <div><dt>Reason</dt><dd>{record.reason}</dd></div>
-          </dl>
-          <div className="dialog-note"><LockKeyIcon size={18} /><span>Raw prompts, files, and message bodies are not included in this shareable view.</span></div>
-        </div>
-      ) : null}
-    </ModalShell>
-  );
-}
-
-function ReviewDialog({ records, open, onOpenChange, onAccept }: { records: EvidenceRecord[]; open: boolean; onOpenChange: (open: boolean) => void; onAccept: (recordId: string) => void }) {
-  return (
-    <ModalShell open={open} onOpenChange={onOpenChange} title="Review queue" description="Only uncertain decisions appear here.">
-      {records.length ? (
-        <div className="review-list">
-          {records.slice(0, 6).map((record) => (
-            <div className="review-row" key={record.id}>
-              <SourceMark source={record.source} />
-              <span><strong>{record.extracted_signal}</strong><small>{record.reason}</small></span>
-              <code>{record.confidence.toFixed(2)}</code>
-              <button type="button" onClick={() => onAccept(record.id)}>Accept</button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state"><strong>Queue cleared.</strong><span>No sample records need review.</span></div>
-      )}
-    </ModalShell>
-  );
-}
-
-function ExportDialog({ workspace, open, onOpenChange, onDownload }: { workspace: WorkspaceData; open: boolean; onOpenChange: (open: boolean) => void; onDownload: () => void }) {
-  const ready = workspace.stages.find((stage) => stage.id === "curated")?.count ?? 0;
-  return (
-    <ModalShell open={open} onOpenChange={onOpenChange} title="Export" description="Publish a reproducible snapshot without local-only content.">
-      <div className="export-summary"><strong>{ready.toLocaleString()}</strong><span>curated records ready</span></div>
-      <div className="export-options">
-        <button type="button" onClick={onDownload}><DownloadSimpleIcon size={18} /> Download manifest</button>
-        <span>Parquet and JSONL exporters use the same snapshot contract.</span>
-      </div>
-    </ModalShell>
-  );
-}
-
-export function WorkspaceDialogs({ active, onChange, workspace, stage, record, onAccept, onDownload }: WorkspaceDialogsProps) {
-  const change = (name: DialogName) => (open: boolean) => onChange(open ? name : null);
-  return (
-    <>
-      <SourcesDialog sources={workspace.sources} open={active === "sources"} onOpenChange={change("sources")} />
-      <RecipeDialog stages={workspace.stages} open={active === "recipe"} onOpenChange={change("recipe")} />
-      <StepDialog workspace={workspace} stage={stage} open={active === "step"} onOpenChange={change("step")} />
-      <RecordDialog record={record} open={active === "record"} onOpenChange={change("record")} />
-      <ReviewDialog records={workspace.records.filter((item) => item.decision === "review")} open={active === "review"} onOpenChange={change("review")} onAccept={onAccept} />
-      <ExportDialog workspace={workspace} open={active === "export"} onOpenChange={change("export")} onDownload={onDownload} />
-    </>
   );
 }

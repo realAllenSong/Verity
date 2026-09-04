@@ -16,7 +16,7 @@ These inputs should be processed inside the user's approved local or firm-manage
 
 - pseudonymous actor and workspace IDs
 - normalized event type and timestamp
-- manager-safe derived signal
+- approved derived record
 - confidence and evidence count
 - policy and quality decisions
 - operator version, input snapshot, and lineage IDs

@@ -4,27 +4,38 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-SourceName = str
 
+class DataRecord(BaseModel):
+    """Portable input contract. Origin-specific values belong in metadata."""
 
-class RawEvent(BaseModel):
-    event_id: str
-    source: SourceName = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9._-]*$")
-    kind: str
-    occurred_at: str | None = None
-    actor: str | None = None
-    thread_id: str | None = None
-    title: str | None = None
-    content: str | None = None
-    status: str | None = None
+    record_id: str = Field(min_length=1)
+    dataset_id: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    batch_id: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    ingested_at: str
+    payload: dict[str, Any]
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class SourceSummary(BaseModel):
-    id: SourceName
-    label: str
-    count: int
-    state: Literal["healthy", "warning", "offline"] = "healthy"
+class DatasetSummary(BaseModel):
+    id: str
+    name: str
+    description: str
+    record_count: int
+    field_count: int
+    batch_count: int
+    updated_at: str
+    completeness: float
+    validity: float
+    state: Literal["ready", "processing", "attention"] = "ready"
+
+
+class BatchSummary(BaseModel):
+    id: str
+    filename: str
+    added_at: str
+    record_count: int
+    field_count: int
+    state: Literal["complete", "staged", "failed"] = "complete"
 
 
 class PipelineStage(BaseModel):
@@ -37,19 +48,61 @@ class PipelineStage(BaseModel):
     status: Literal["complete", "review", "idle"] = "complete"
 
 
+class RecipeOperator(BaseModel):
+    id: str
+    label: str
+    description: str
+    operator: str
+    version: str
+    state: Literal["configured", "draft", "disabled"] = "configured"
+
+
+class RecipeSummary(BaseModel):
+    id: str
+    name: str
+    version: int
+    state: Literal["published", "draft"]
+    updated_at: str
+    operators: list[RecipeOperator]
+
+
+class RunSummary(BaseModel):
+    id: str
+    recipe_version: int
+    started_at: str
+    duration_seconds: int
+    record_count: int
+    ready_count: int
+    review_count: int
+    state: Literal["succeeded", "warning", "failed", "running"]
+
+
+class OutputSummary(BaseModel):
+    id: str
+    name: str
+    format: Literal["parquet", "jsonl", "csv"]
+    record_count: int
+    created_at: str
+    size: str
+    state: Literal["ready", "building", "expired"] = "ready"
+
+
 class EvidenceRecord(BaseModel):
     id: str
-    source: SourceName
-    source_label: str
+    batch_id: str
+    before_fields: dict[str, str]
+    after_fields: dict[str, str]
     raw_event: str
     extracted_signal: str
     signal_type: str
     confidence: float
+    quality_score: float
     decision: Literal["accepted", "rejected", "modified", "review"]
     reason: str
     occurred_at: str
-    privacy: str = "manager-safe summary"
+    privacy: str = "shareable summary"
     evidence_count: int = 1
+    metadata: dict[str, str] = Field(default_factory=dict)
 
 
 class DecisionBreakdown(BaseModel):
@@ -70,10 +123,13 @@ class StepSettings(BaseModel):
 
 
 class WorkspaceResponse(BaseModel):
-    project: dict[str, str]
+    dataset: DatasetSummary
     generated_at: str
     run_id: str
-    sources: list[SourceSummary]
+    batches: list[BatchSummary]
+    recipe: RecipeSummary
+    runs: list[RunSummary]
+    outputs: list[OutputSummary]
     stages: list[PipelineStage]
     records: list[EvidenceRecord]
     decision_breakdown: DecisionBreakdown
@@ -87,6 +143,17 @@ class WorkspaceResponse(BaseModel):
 class ReviewUpdate(BaseModel):
     decision: Literal["accepted", "rejected", "modified"]
     note: str = Field(default="", max_length=500)
+
+
+class BatchCreate(BaseModel):
+    filename: str = Field(min_length=1, max_length=180)
+    records: list[dict[str, Any]] = Field(min_length=1, max_length=10_000)
+
+
+class BatchStageResponse(BaseModel):
+    batch: BatchSummary
+    sample_fields: list[str]
+    message: str
 
 
 class RunResponse(BaseModel):

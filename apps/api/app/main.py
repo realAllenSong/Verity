@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import ReviewUpdate, RunResponse, WorkspaceResponse
+from .models import BatchCreate, BatchStageResponse, ReviewUpdate, RunResponse, WorkspaceResponse
 from .settings import get_settings
 from .store import WorkspaceStore
 
@@ -59,6 +59,20 @@ def run_recipe(current: StoreDependency) -> RunResponse:
         state="succeeded",
         stage_counts={stage.id: stage.count for stage in result.stages},
     )
+
+
+@app.post(
+    "/api/v1/datasets/{dataset_id}/batches",
+    response_model=BatchStageResponse,
+    status_code=201,
+)
+def stage_batch(
+    dataset_id: str, request: BatchCreate, current: StoreDependency
+) -> BatchStageResponse:
+    try:
+        return current.stage_batch(dataset_id, request)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Dataset not found") from error
 
 
 @app.get("/api/v1/review-queue")

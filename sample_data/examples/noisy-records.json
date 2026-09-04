@@ -1,0 +1,7 @@
+[
+  {"timestamp":"2026-09-04 08:15:00","message":"  retry failed  ","owner":"alpha@example.invalid","score":"0.91"},
+  {"timestamp":"09/04/2026 08:16","message":"Retry failed","owner":"","score":0.88},
+  {"timestamp":null,"message":"duplicate?","owner":"person_42","score":"unknown"},
+  {"time":"2026-09-04T08:19:00Z","body":"unexpected schema","labels":["raw","urgent"]},
+  {"timestamp":"not-a-date","message":"od_demo_secret_EXAMPLE","owner":"person_17","score":0.42}
+]

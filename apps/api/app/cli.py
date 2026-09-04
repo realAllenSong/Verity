@@ -21,10 +21,10 @@ def main() -> None:
         raw_dir = root / "sample_data" / "raw"
         artifact_dir = root / "artifacts" / RUN_ID
         web_fixture = root / "apps" / "web" / "src" / "data" / "demo-workspace.json"
-        source_counts = generate_noisy_fixtures(raw_dir)
+        batch_counts = generate_noisy_fixtures(raw_dir)
         workspace = run_pipeline(raw_dir, artifact_dir, web_fixture)
         stage_counts = {stage.id: stage.count for stage in workspace.stages}
-        print(f"sources={source_counts}")
+        print(f"batches={batch_counts}")
         print(f"stages={stage_counts}")
         print(f"fixture={web_fixture}")
 

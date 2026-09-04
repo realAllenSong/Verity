@@ -12,7 +12,6 @@ This implementation composes maintained libraries rather than copying source fro
 | FastAPI + Pydantic | reference control plane and contracts | replaceable by OpenAPI-compatible Go service |
 | Radix Themes | accessible dialogs and menus | UI primitives, customized visually |
 | Phosphor Icons | interaction and selected brand glyphs | visual assets |
-| Simple Icons | Anthropic, Jira, and Confluence brand marks | visual assets |
 | Dagster | optional orchestration adapter | not required by the core runner |
 
 ## Good future adapters

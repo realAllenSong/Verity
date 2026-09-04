@@ -1,6 +1,163 @@
 {
   "components": {
     "schemas": {
+      "BatchCreate": {
+        "properties": {
+          "filename": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "filename",
+          "records"
+        ],
+        "title": "BatchCreate",
+        "type": "object"
+      },
+      "BatchStageResponse": {
+        "properties": {
+          "batch": {
+            "$ref": "#/components/schemas/BatchSummary"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "sample_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sample Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "batch",
+          "sample_fields",
+          "message"
+        ],
+        "title": "BatchStageResponse",
+        "type": "object"
+      },
+      "BatchSummary": {
+        "properties": {
+          "added_at": {
+            "title": "Added At",
+            "type": "string"
+          },
+          "field_count": {
+            "title": "Field Count",
+            "type": "integer"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "record_count": {
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "state": {
+            "default": "complete",
+            "enum": [
+              "complete",
+              "staged",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "added_at",
+          "record_count",
+          "field_count"
+        ],
+        "title": "BatchSummary",
+        "type": "object"
+      },
+      "DatasetSummary": {
+        "properties": {
+          "batch_count": {
+            "title": "Batch Count",
+            "type": "integer"
+          },
+          "completeness": {
+            "title": "Completeness",
+            "type": "number"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "field_count": {
+            "title": "Field Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "record_count": {
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "state": {
+            "default": "ready",
+            "enum": [
+              "ready",
+              "processing",
+              "attention"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "validity": {
+            "title": "Validity",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "record_count",
+          "field_count",
+          "batch_count",
+          "updated_at",
+          "completeness",
+          "validity"
+        ],
+        "title": "DatasetSummary",
+        "type": "object"
+      },
       "DecisionBreakdown": {
         "properties": {
           "accepted": {
@@ -26,6 +183,24 @@
       },
       "EvidenceRecord": {
         "properties": {
+          "after_fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "After Fields",
+            "type": "object"
+          },
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "before_fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Before Fields",
+            "type": "object"
+          },
           "confidence": {
             "title": "Confidence",
             "type": "number"
@@ -53,14 +228,25 @@
             "title": "Id",
             "type": "string"
           },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
           "occurred_at": {
             "title": "Occurred At",
             "type": "string"
           },
           "privacy": {
-            "default": "manager-safe summary",
+            "default": "shareable summary",
             "title": "Privacy",
             "type": "string"
+          },
+          "quality_score": {
+            "title": "Quality Score",
+            "type": "number"
           },
           "raw_event": {
             "title": "Raw Event",
@@ -73,24 +259,18 @@
           "signal_type": {
             "title": "Signal Type",
             "type": "string"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          },
-          "source_label": {
-            "title": "Source Label",
-            "type": "string"
           }
         },
         "required": [
           "id",
-          "source",
-          "source_label",
+          "batch_id",
+          "before_fields",
+          "after_fields",
           "raw_event",
           "extracted_signal",
           "signal_type",
           "confidence",
+          "quality_score",
           "decision",
           "reason",
           "occurred_at"
@@ -109,6 +289,59 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "OutputSummary": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "parquet",
+              "jsonl",
+              "csv"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "record_count": {
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "size": {
+            "title": "Size",
+            "type": "string"
+          },
+          "state": {
+            "default": "ready",
+            "enum": [
+              "ready",
+              "building",
+              "expired"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "format",
+          "record_count",
+          "created_at",
+          "size"
+        ],
+        "title": "OutputSummary",
         "type": "object"
       },
       "PipelineStage": {
@@ -157,6 +390,94 @@
           "operator"
         ],
         "title": "PipelineStage",
+        "type": "object"
+      },
+      "RecipeOperator": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "operator": {
+            "title": "Operator",
+            "type": "string"
+          },
+          "state": {
+            "default": "configured",
+            "enum": [
+              "configured",
+              "draft",
+              "disabled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "description",
+          "operator",
+          "version"
+        ],
+        "title": "RecipeOperator",
+        "type": "object"
+      },
+      "RecipeSummary": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "operators": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeOperator"
+            },
+            "title": "Operators",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "published",
+              "draft"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "state",
+          "updated_at",
+          "operators"
+        ],
+        "title": "RecipeSummary",
         "type": "object"
       },
       "ReviewUpdate": {
@@ -213,26 +534,42 @@
         "title": "RunResponse",
         "type": "object"
       },
-      "SourceSummary": {
+      "RunSummary": {
         "properties": {
-          "count": {
-            "title": "Count",
+          "duration_seconds": {
+            "title": "Duration Seconds",
             "type": "integer"
           },
           "id": {
             "title": "Id",
             "type": "string"
           },
-          "label": {
-            "title": "Label",
+          "ready_count": {
+            "title": "Ready Count",
+            "type": "integer"
+          },
+          "recipe_version": {
+            "title": "Recipe Version",
+            "type": "integer"
+          },
+          "record_count": {
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "review_count": {
+            "title": "Review Count",
+            "type": "integer"
+          },
+          "started_at": {
+            "title": "Started At",
             "type": "string"
           },
           "state": {
-            "default": "healthy",
             "enum": [
-              "healthy",
+              "succeeded",
               "warning",
-              "offline"
+              "failed",
+              "running"
             ],
             "title": "State",
             "type": "string"
@@ -240,10 +577,15 @@
         },
         "required": [
           "id",
-          "label",
-          "count"
+          "recipe_version",
+          "started_at",
+          "duration_seconds",
+          "record_count",
+          "ready_count",
+          "review_count",
+          "state"
         ],
-        "title": "SourceSummary",
+        "title": "RunSummary",
         "type": "object"
       },
       "StepSettings": {
@@ -336,12 +678,22 @@
       },
       "WorkspaceResponse": {
         "properties": {
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/BatchSummary"
+            },
+            "title": "Batches",
+            "type": "array"
+          },
           "copy_policy": {
             "additionalProperties": {
               "type": "string"
             },
             "title": "Copy Policy",
             "type": "object"
+          },
+          "dataset": {
+            "$ref": "#/components/schemas/DatasetSummary"
           },
           "decision_breakdown": {
             "$ref": "#/components/schemas/DecisionBreakdown"
@@ -350,12 +702,15 @@
             "title": "Generated At",
             "type": "string"
           },
-          "project": {
-            "additionalProperties": {
-              "type": "string"
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/OutputSummary"
             },
-            "title": "Project",
-            "type": "object"
+            "title": "Outputs",
+            "type": "array"
+          },
+          "recipe": {
+            "$ref": "#/components/schemas/RecipeSummary"
           },
           "records": {
             "items": {
@@ -367,6 +722,13 @@
           "run_id": {
             "title": "Run Id",
             "type": "string"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "title": "Runs",
+            "type": "array"
           },
           "schema_after": {
             "items": {
@@ -395,13 +757,6 @@
             "title": "Signal Distribution",
             "type": "object"
           },
-          "sources": {
-            "items": {
-              "$ref": "#/components/schemas/SourceSummary"
-            },
-            "title": "Sources",
-            "type": "array"
-          },
           "stages": {
             "items": {
               "$ref": "#/components/schemas/PipelineStage"
@@ -414,10 +769,13 @@
           }
         },
         "required": [
-          "project",
+          "dataset",
           "generated_at",
           "run_id",
-          "sources",
+          "batches",
+          "recipe",
+          "runs",
+          "outputs",
           "stages",
           "records",
           "decision_breakdown",
@@ -439,6 +797,55 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/datasets/{dataset_id}/batches": {
+      "post": {
+        "operationId": "stage_batch_api_v1_datasets__dataset_id__batches_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stage Batch"
+      }
+    },
     "/api/v1/review-queue": {
       "get": {
         "operationId": "review_queue_api_v1_review_queue_get",

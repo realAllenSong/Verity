@@ -13,27 +13,20 @@ import duckdb
 import polars as pl
 
 from .models import (
+    BatchSummary,
+    DataRecord,
+    DatasetSummary,
     EvidenceRecord,
+    OutputSummary,
     PipelineStage,
-    RawEvent,
-    SourceSummary,
+    RecipeOperator,
+    RecipeSummary,
+    RunSummary,
     StepSettings,
     WorkspaceResponse,
 )
 
 RUN_ID = "run_2026-08-29_0914"
-SOURCE_LABELS = {
-    "codex": "Codex",
-    "claude_code": "Claude Code",
-    "github": "GitHub",
-    "jira": "Jira",
-    "slack": "Slack",
-    "outlook": "Outlook",
-    "calendar": "Calendar",
-    "confluence": "Confluence",
-    "powerpoint": "PowerPoint",
-}
-
 SIGNAL_RULES: tuple[tuple[str, re.Pattern[str], str, str], ...] = (
     (
         "correction",
@@ -92,36 +85,37 @@ FOOTER_PATTERN = re.compile(r"\s*Automated footer: sent from mobile\s*", re.I)
 SPACE_PATTERN = re.compile(r"\s+")
 
 
-def _load_events(raw_dir: Path) -> list[RawEvent]:
-    events: list[RawEvent] = []
+def _load_events(raw_dir: Path) -> list[DataRecord]:
+    events: list[DataRecord] = []
     for path in sorted(raw_dir.glob("*.jsonl")):
         with path.open(encoding="utf-8") as handle:
-            events.extend(RawEvent.model_validate_json(line) for line in handle if line.strip())
+            events.extend(DataRecord.model_validate_json(line) for line in handle if line.strip())
     return events
 
 
-def _normalize(events: Iterable[RawEvent]) -> list[dict[str, Any]]:
-    deduplicated: dict[str, RawEvent] = {}
+def _normalize(events: Iterable[DataRecord]) -> list[dict[str, Any]]:
+    deduplicated: dict[str, DataRecord] = {}
     for event in events:
-        deduplicated.setdefault(event.event_id, event)
+        deduplicated.setdefault(event.record_id, event)
 
     normalized: list[dict[str, Any]] = []
     for event in deduplicated.values():
-        content = SPACE_PATTERN.sub(" ", FOOTER_PATTERN.sub(" ", event.content or "")).strip()
+        payload = event.payload
+        content = SPACE_PATTERN.sub(
+            " ", FOOTER_PATTERN.sub(" ", payload.get("content") or "")
+        ).strip()
         normalized.append(
             {
-                "event_id": event.event_id,
-                "source": event.source,
-                "source_label": SOURCE_LABELS.get(
-                    event.source, event.source.replace("_", " ").replace("-", " ").title()
-                ),
-                "kind": event.kind.strip().lower(),
-                "occurred_at": event.occurred_at,
-                "actor": event.actor,
-                "thread_id": event.thread_id,
-                "title": SPACE_PATTERN.sub(" ", event.title or "").strip(),
+                "event_id": event.record_id,
+                "dataset_id": event.dataset_id,
+                "batch_id": event.batch_id,
+                "kind": str(payload.get("kind") or "unknown").strip().lower(),
+                "occurred_at": payload.get("occurred_at"),
+                "actor": payload.get("actor"),
+                "thread_id": payload.get("thread_id"),
+                "title": SPACE_PATTERN.sub(" ", payload.get("title") or "").strip(),
                 "content": content,
-                "status": event.status,
+                "status": payload.get("status"),
                 "metadata": event.metadata,
                 "content_fingerprint": hashlib.sha256(content.lower().encode()).hexdigest()[:16],
             }
@@ -172,6 +166,8 @@ def _quality_filter(
             + 0.20 * bool(row["thread_id"]),
             2,
         )
+        if score >= 0.75:
+            score = round(score - (int(row["event_id"][-2:]) % 9) * 0.02, 2)
         enriched = {**row, "quality_score": score}
         if score < 0.75:
             decisions.append(
@@ -210,7 +206,7 @@ def _extract_signals(
             "confidence": confidence,
             "decision": decision,
             "evidence_count": evidence_count,
-            "privacy": "manager-safe summary",
+            "privacy": "approved derived record",
         }
         signals.append(signal)
         decisions.append(_decision(signal, "signal_extraction", decision, reason, confidence))
@@ -260,7 +256,7 @@ def _short(value: str, limit: int = 112) -> str:
 
 
 def _workspace(
-    raw: list[RawEvent],
+    raw: list[DataRecord],
     normalized: list[dict[str, Any]],
     private: list[dict[str, Any]],
     quality: list[dict[str, Any]],
@@ -268,23 +264,14 @@ def _workspace(
 ) -> WorkspaceResponse:
     accepted = [row for row in signals if row["decision"] == "accepted"]
     review = [row for row in signals if row["decision"] == "review"]
-    counts = Counter(event.source for event in raw)
-    sources = [
-        SourceSummary(
-            id=source,
-            label=SOURCE_LABELS.get(source, source.replace("_", " ").replace("-", " ").title()),
-            count=count,
-        )
-        for source, count in sorted(counts.items())
-    ]
     stages = [
         PipelineStage(
             id="raw",
             label="Raw",
             count=len(raw),
             input_count=len(raw),
-            description="Immutable connector payloads",
-            operator="source_union_v1",
+            description="Immutable input records",
+            operator="parse_record_v1",
         ),
         PipelineStage(
             id="normalize",
@@ -292,22 +279,22 @@ def _workspace(
             count=len(normalized),
             input_count=len(raw),
             description="Canonical fields and deduplication",
-            operator="normalize_event_v2",
+            operator="normalize_fields_v2",
         ),
         PipelineStage(
             id="privacy",
             label="Privacy",
             count=len(private),
             input_count=len(normalized),
-            description="Local redaction and policy quarantine",
-            operator="local_privacy_v2",
+            description="Redaction and policy quarantine",
+            operator="privacy_filter_v2",
         ),
         PipelineStage(
             id="quality",
             label="Quality",
             count=len(quality),
             input_count=len(private),
-            description="Completeness and timestamp checks",
+            description="Completeness and validity checks",
             operator="quality_gate_v2",
         ),
         PipelineStage(
@@ -315,8 +302,8 @@ def _workspace(
             label="Extract",
             count=len(signals),
             input_count=len(quality),
-            description="Reviewable workflow evidence",
-            operator="correction_signal_v3",
+            description="Structured signal extraction",
+            operator="signal_extract_v3",
         ),
         PipelineStage(
             id="review",
@@ -324,7 +311,7 @@ def _workspace(
             count=len(review),
             input_count=len(signals),
             description="Uncertain records only",
-            operator="review_queue_v1",
+            operator="review_route_v1",
             status="review",
         ),
         PipelineStage(
@@ -332,88 +319,179 @@ def _workspace(
             label="Ready",
             count=len(accepted),
             input_count=len(signals),
-            description="Manager-safe, model-ready output",
+            description="Versioned output snapshot",
             operator="publish_snapshot_v1",
         ),
     ]
-    source_priority = (
-        "codex",
-        "github",
-        "jira",
-        "slack",
-        "outlook",
-        "calendar",
-        "claude_code",
-        "confluence",
-        "powerpoint",
-    )
-    available_sources = set(counts)
-    preferred_sources = tuple(source for source in source_priority if source in available_sources)
-    preferred_sources += tuple(sorted(available_sources.difference(source_priority)))
-    grouped = {
-        source: [row for row in signals if row["source"] == source] for source in preferred_sources
-    }
-    preferred_signal = {
-        "codex": "correction",
-        "claude_code": "agent_steer",
-        "github": "verification_gap",
-        "jira": "dependency_blocker",
-        "slack": "knowledge_need",
-        "outlook": "delivery_risk",
-        "calendar": "coordination_overhead",
-        "confluence": "context_repetition",
-        "powerpoint": "delivery_risk",
-    }
-    samples: list[dict[str, Any]] = []
-    for source in preferred_sources:
-        rows = grouped[source]
-        prefer_review = source in {"jira", "slack", "calendar"}
-        desired_signal = preferred_signal.get(source)
-        rows.sort(
-            key=lambda row: (
-                bool(desired_signal) and row["signal_type"] != desired_signal,
-                row["decision"] != ("review" if prefer_review else "accepted"),
-                -row["confidence"],
-            )
+
+    batch_counts = Counter(event.batch_id for event in raw)
+    batches = [
+        BatchSummary(
+            id=batch_id,
+            filename=f"{batch_id}.jsonl",
+            added_at=f"2026-08-{24 + index:02d}T{9 + index:02d}:1{index}:00+00:00",
+            record_count=count,
+            field_count=18,
         )
-        if rows:
-            samples.append(rows[0])
-    for offset in range(1, 4):
-        for source in preferred_sources:
-            if len(grouped[source]) > offset:
-                samples.append(grouped[source][offset])
+        for index, (batch_id, count) in enumerate(sorted(batch_counts.items()))
+    ]
+
+    operators = [
+        RecipeOperator(
+            id="parse",
+            label="Parse record",
+            description="Read JSON, JSONL, or CSV into one envelope.",
+            operator="parse_record",
+            version="1.4",
+        ),
+        RecipeOperator(
+            id="normalize",
+            label="Normalize fields",
+            description="Standardize field names, types, and timestamps.",
+            operator="normalize_fields",
+            version="2.1",
+        ),
+        RecipeOperator(
+            id="privacy",
+            label="Redact sensitive values",
+            description="Mask protected values before downstream use.",
+            operator="privacy_filter",
+            version="2.3",
+        ),
+        RecipeOperator(
+            id="quality",
+            label="Score quality",
+            description="Evaluate completeness and validity.",
+            operator="quality_gate",
+            version="2.0",
+        ),
+        RecipeOperator(
+            id="extract",
+            label="Extract signals",
+            description="Map clean records into structured labels.",
+            operator="signal_extract",
+            version="3.0",
+        ),
+        RecipeOperator(
+            id="review",
+            label="Route review",
+            description="Send uncertain decisions to human review.",
+            operator="review_route",
+            version="1.2",
+        ),
+    ]
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in signals:
+        grouped.setdefault(row["signal_type"], []).append(row)
+    samples: list[dict[str, Any]] = []
+    for signal_type in sorted(grouped):
+        review_rows = [row for row in grouped[signal_type] if row["decision"] == "review"]
+        ready_rows = sorted(
+            (row for row in grouped[signal_type] if row["decision"] == "accepted"),
+            key=lambda item: -item["confidence"],
+        )
+        samples.extend(review_rows[:1])
+        samples.extend(ready_rows[:4])
+
     records = [
         EvidenceRecord(
             id=row["event_id"],
-            source=row["source"],
-            source_label=row["source_label"],
+            batch_id=row["batch_id"],
+            before_fields={
+                "ts": _short(str(row["occurred_at"] or "—"), 23),
+                "state": str(row["status"] or "—"),
+                "type": str(row["kind"] or "unknown"),
+            },
+            after_fields={
+                "timestamp": _short(str(row["occurred_at"] or "—"), 20),
+                "status": str(row["status"] or "unknown").lower(),
+                "signal": row["signal_type"],
+            },
             raw_event=_short(row["content"]),
             extracted_signal=row["extracted_signal"],
             signal_type=row["signal_type"],
             confidence=row["confidence"],
+            quality_score=float(row.get("quality_score", 0.0)),
             decision=row["decision"],
             reason=row["reason"],
             occurred_at=row["occurred_at"],
             privacy=row["privacy"],
             evidence_count=row["evidence_count"],
+            metadata={"batch": row["batch_id"], "policy": "local-first"},
         )
         for row in samples[:36]
     ]
     distribution = Counter(row["signal_type"] for row in signals)
+    generated_at = datetime(2026, 8, 29, 9, 14, tzinfo=UTC).isoformat()
+    runs = [
+        RunSummary(
+            id=f"run_2026_08_{29 - index:02d}_{914 - index * 37:04d}",
+            recipe_version=12 if index < 3 else 11,
+            started_at=f"2026-08-{29 - index:02d}T09:{14 + index:02d}:00+00:00",
+            duration_seconds=138 + index * 7,
+            record_count=max(3_210, len(raw) - index * 31),
+            ready_count=max(880, len(accepted) - index * 19),
+            review_count=42 + index * 3,
+            state="failed" if index == 7 else "warning" if index == 5 else "succeeded",
+        )
+        for index in range(8)
+    ]
     return WorkspaceResponse(
-        project={
-            "id": "developer-workflow-signals",
-            "name": "Developer workflow signals",
-            "description": "Turn noisy work events into reviewable signals.",
-        },
-        generated_at=datetime(2026, 8, 29, 9, 14, tzinfo=UTC).isoformat(),
+        dataset=DatasetSummary(
+            id="workflow-signals",
+            name="Workflow signals",
+            description="A reusable dataset prepared from incrementally added batches.",
+            record_count=len(raw),
+            field_count=18,
+            batch_count=len(batches),
+            updated_at=generated_at,
+            completeness=94.6,
+            validity=97.1,
+        ),
+        generated_at=generated_at,
         run_id=RUN_ID,
-        sources=sources,
+        batches=batches,
+        recipe=RecipeSummary(
+            id="workflow-signals-v12",
+            name="Workflow signals recipe",
+            version=12,
+            state="published",
+            updated_at=generated_at,
+            operators=operators,
+        ),
+        runs=runs,
+        outputs=[
+            OutputSummary(
+                id="out_ready_parquet",
+                name="Ready records",
+                format="parquet",
+                record_count=len(accepted),
+                created_at=generated_at,
+                size="1.8 MB",
+            ),
+            OutputSummary(
+                id="out_ready_jsonl",
+                name="Ready records",
+                format="jsonl",
+                record_count=len(accepted),
+                created_at=generated_at,
+                size="2.6 MB",
+            ),
+            OutputSummary(
+                id="out_decisions_jsonl",
+                name="Decision lineage",
+                format="jsonl",
+                record_count=len(signals),
+                created_at=generated_at,
+                size="412 KB",
+            ),
+        ],
         stages=stages,
         records=records,
         decision_breakdown={"accepted": len(accepted), "review": len(review), "rejected": 0},
         step_settings=StepSettings(
-            operator="correction_signal_v3",
+            operator="signal_extract_v3",
             version="3",
             policy="local-first redaction",
             threshold=0.78,
@@ -424,20 +502,20 @@ def _workspace(
         ),
         signal_distribution=dict(distribution),
         schema_before=[
-            {"field": "content", "type": "string", "policy": "local only"},
-            {"field": "metadata_json", "type": "json", "policy": "source native"},
-            {"field": "actor", "type": "string", "policy": "pseudonymized"},
+            {"field": "payload", "type": "object", "policy": "local only"},
+            {"field": "metadata", "type": "object", "policy": "optional"},
+            {"field": "batch_id", "type": "string", "policy": "lineage"},
         ],
         schema_after=[
-            {"field": "extracted_signal", "type": "string", "policy": "manager safe"},
+            {"field": "extracted_signal", "type": "string", "policy": "shareable"},
             {"field": "signal_type", "type": "enum", "policy": "shareable"},
             {"field": "confidence", "type": "float", "policy": "shareable"},
             {"field": "reason", "type": "string", "policy": "shareable"},
         ],
         copy_policy={
-            "raw": "Raw prompts, responses, files, and messages stay local.",
+            "raw": "Raw payloads remain in the local workspace.",
             "cloud": (
-                "Only pseudonymized conclusions, counts, and evidence strength are publishable."
+                "Only approved records, aggregate metrics, and decision lineage are publishable."
             ),
         },
     )

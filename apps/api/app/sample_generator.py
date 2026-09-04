@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import random
-from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -281,10 +280,11 @@ def _build_event(i: int, rng: random.Random) -> dict[str, Any]:
 
 
 def generate_noisy_fixtures(output_dir: Path) -> dict[str, int]:
-    """Create deterministic, synthetic, deliberately noisy multi-source JSONL fixtures."""
+    """Create deterministic noisy batches using the generic record-envelope contract."""
     output_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(24_082_026)
-    by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for existing in output_dir.glob("*.jsonl"):
+        existing.unlink()
 
     unique = [_build_event(i, rng) for i in range(UNIQUE_EVENTS)]
     duplicates = []
@@ -298,13 +298,35 @@ def generate_noisy_fixtures(output_dir: Path) -> dict[str, int]:
 
     all_events = unique + duplicates
     rng.shuffle(all_events)
-    for event in all_events:
-        by_source[event["source"]].append(event)
+    batch_names = (
+        "batch_2026_08_24_01",
+        "batch_2026_08_25_01",
+        "batch_2026_08_26_01",
+        "batch_2026_08_27_01",
+        "batch_2026_08_28_01",
+        "batch_2026_08_29_01",
+    )
+    batches: dict[str, list[dict[str, Any]]] = {name: [] for name in batch_names}
+    for index, event in enumerate(all_events):
+        batch_id = batch_names[index % len(batch_names)]
+        native_metadata = event.pop("metadata")
+        origin = event.pop("source")
+        envelope = {
+            "record_id": event["event_id"],
+            "dataset_id": "workflow-signals",
+            "batch_id": batch_id,
+            "ingested_at": (
+                datetime(2026, 8, 24, 9, tzinfo=UTC) + timedelta(days=index % 6, seconds=index)
+            ).isoformat(),
+            "payload": event,
+            "metadata": {"origin": origin, **native_metadata},
+        }
+        batches[batch_id].append(envelope)
 
-    for source, events in by_source.items():
-        target = output_dir / f"{source}.jsonl"
+    for batch_id, records in batches.items():
+        target = output_dir / f"{batch_id}.jsonl"
         with target.open("w", encoding="utf-8") as handle:
-            for event in events:
-                handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+            for record in records:
+                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
-    return {source: len(by_source[source]) for source in SOURCES}
+    return {batch_id: len(records) for batch_id, records in batches.items()}
