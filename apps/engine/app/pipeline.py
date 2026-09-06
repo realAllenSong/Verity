@@ -19,9 +19,12 @@ from .models import (
     EvidenceRecord,
     OutputSummary,
     PipelineStage,
+    QualityCheck,
     RecipeOperator,
     RecipeSummary,
+    RunEvent,
     RunSummary,
+    SchemaContract,
     StepSettings,
     WorkspaceResponse,
 )
@@ -85,11 +88,16 @@ FOOTER_PATTERN = re.compile(r"\s*Automated footer: sent from mobile\s*", re.I)
 SPACE_PATTERN = re.compile(r"\s+")
 
 
-def _load_events(raw_dir: Path) -> list[DataRecord]:
+def _load_events(raw_dirs: Iterable[Path]) -> list[DataRecord]:
     events: list[DataRecord] = []
-    for path in sorted(raw_dir.glob("*.jsonl")):
-        with path.open(encoding="utf-8") as handle:
-            events.extend(DataRecord.model_validate_json(line) for line in handle if line.strip())
+    for raw_dir in raw_dirs:
+        if not raw_dir.exists():
+            continue
+        for path in sorted(raw_dir.glob("*.jsonl")):
+            with path.open(encoding="utf-8") as handle:
+                events.extend(
+                    DataRecord.model_validate_json(line) for line in handle if line.strip()
+                )
     return events
 
 
@@ -125,6 +133,7 @@ def _normalize(events: Iterable[DataRecord]) -> list[dict[str, Any]]:
 
 def _privacy_filter(
     rows: Iterable[dict[str, Any]],
+    run_id: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     output: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
@@ -132,7 +141,11 @@ def _privacy_filter(
         if row["metadata"].get("sensitive_only"):
             decisions.append(
                 _decision(
-                    row, "privacy_policy", "rejected", "Sensitive fragment had no task context."
+                    row,
+                    "privacy_policy",
+                    "rejected",
+                    "Sensitive fragment had no task context.",
+                    run_id,
                 )
             )
             continue
@@ -155,6 +168,7 @@ def _valid_timestamp(value: str | None) -> bool:
 
 def _quality_filter(
     rows: Iterable[dict[str, Any]],
+    run_id: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     output: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
@@ -172,7 +186,11 @@ def _quality_filter(
         if score < 0.75:
             decisions.append(
                 _decision(
-                    row, "quality_filter", "rejected", f"Quality score {score:.2f} is below 0.75."
+                    row,
+                    "quality_filter",
+                    "rejected",
+                    f"Quality score {score:.2f} is below 0.75.",
+                    run_id,
                 )
             )
             continue
@@ -182,6 +200,7 @@ def _quality_filter(
 
 def _extract_signals(
     rows: Iterable[dict[str, Any]],
+    run_id: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     signals: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
@@ -189,7 +208,13 @@ def _extract_signals(
         matched = next((rule for rule in SIGNAL_RULES if rule[1].search(row["content"])), None)
         if not matched:
             decisions.append(
-                _decision(row, "signal_extraction", "rejected", "No supported signal found.")
+                _decision(
+                    row,
+                    "signal_extraction",
+                    "rejected",
+                    "No supported signal found.",
+                    run_id,
+                )
             )
             continue
         signal_type, _, summary, reason = matched
@@ -209,7 +234,9 @@ def _extract_signals(
             "privacy": "approved derived record",
         }
         signals.append(signal)
-        decisions.append(_decision(signal, "signal_extraction", decision, reason, confidence))
+        decisions.append(
+            _decision(signal, "signal_extraction", decision, reason, run_id, confidence)
+        )
     return signals, decisions
 
 
@@ -218,19 +245,24 @@ def _decision(
     stage_id: str,
     decision: str,
     reason: str,
+    run_id: str,
     confidence: float | None = None,
 ) -> dict[str, Any]:
-    digest = hashlib.sha1(f"{RUN_ID}:{stage_id}:{row['event_id']}".encode()).hexdigest()[:14]
+    digest = hashlib.sha1(f"{run_id}:{stage_id}:{row['event_id']}".encode()).hexdigest()[:14]
     return {
         "decision_id": f"dec_{digest}",
-        "run_id": RUN_ID,
+        "run_id": run_id,
         "stage_id": stage_id,
         "event_id": row["event_id"],
         "decision": decision,
         "reason": reason,
         "confidence": confidence,
         "operator_version": "3",
-        "created_at": datetime(2026, 8, 29, 9, 14, tzinfo=UTC).isoformat(),
+        "created_at": (
+            datetime(2026, 8, 29, 9, 14, tzinfo=UTC).isoformat()
+            if run_id == RUN_ID
+            else datetime.now(UTC).replace(microsecond=0).isoformat()
+        ),
     }
 
 
@@ -261,6 +293,7 @@ def _workspace(
     private: list[dict[str, Any]],
     quality: list[dict[str, Any]],
     signals: list[dict[str, Any]],
+    run_id: str,
 ) -> WorkspaceResponse:
     accepted = [row for row in signals if row["decision"] == "accepted"]
     review = [row for row in signals if row["decision"] == "review"]
@@ -323,17 +356,55 @@ def _workspace(
             operator="publish_snapshot_v1",
         ),
     ]
+    for stage in stages:
+        retention = 100.0 if stage.input_count == 0 else 100 * stage.count / stage.input_count
+        stage.checks = [
+            QualityCheck(
+                id=f"{stage.id}_artifact",
+                label="Artifact readable",
+                state="passed",
+                severity="blocking",
+                observed=f"{stage.count} records",
+            )
+        ]
+        if stage.id != "raw":
+            stage.checks.append(
+                QualityCheck(
+                    id=f"{stage.id}_retention",
+                    label="Retention accounted for",
+                    state="passed",
+                    severity="warning",
+                    observed=f"{retention:.1f}% retained",
+                )
+            )
 
     batch_counts = Counter(event.batch_id for event in raw)
+    batch_records = {
+        batch_id: [event for event in raw if event.batch_id == batch_id]
+        for batch_id in batch_counts
+    }
     batches = [
         BatchSummary(
             id=batch_id,
-            filename=f"{batch_id}.jsonl",
-            added_at=f"2026-08-{24 + index:02d}T{9 + index:02d}:1{index}:00+00:00",
+            filename=str(
+                batch_records[batch_id][0].metadata.get("filename") or f"{batch_id}.jsonl"
+            ),
+            added_at=min(event.ingested_at for event in batch_records[batch_id]),
             record_count=count,
-            field_count=18,
+            field_count=len(
+                {
+                    key
+                    for event in batch_records[batch_id]
+                    for key in event.payload
+                }
+            ),
+            state=(
+                "staged"
+                if batch_records[batch_id][0].metadata.get("state") == "staged"
+                else "complete"
+            ),
         )
-        for index, (batch_id, count) in enumerate(sorted(batch_counts.items()))
+        for batch_id, count in sorted(batch_counts.items())
     ]
 
     operators = [
@@ -423,8 +494,12 @@ def _workspace(
         for row in samples[:36]
     ]
     distribution = Counter(row["signal_type"] for row in signals)
-    generated_at = datetime(2026, 8, 29, 9, 14, tzinfo=UTC).isoformat()
-    runs = [
+    generated_at = (
+        datetime(2026, 8, 29, 9, 14, tzinfo=UTC).isoformat()
+        if run_id == RUN_ID
+        else datetime.now(UTC).replace(microsecond=0).isoformat()
+    )
+    historical_runs = [
         RunSummary(
             id=f"run_2026_08_{29 - index:02d}_{914 - index * 37:04d}",
             recipe_version=12 if index < 3 else 11,
@@ -437,6 +512,19 @@ def _workspace(
         )
         for index in range(8)
     ]
+    runs = [
+        RunSummary(
+            id=run_id,
+            recipe_version=12,
+            started_at=generated_at,
+            duration_seconds=0 if run_id != RUN_ID else 138,
+            record_count=len(raw),
+            ready_count=len(accepted),
+            review_count=len(review),
+            state="succeeded",
+        ),
+        *(run for run in historical_runs if run.id != run_id),
+    ][:8]
     return WorkspaceResponse(
         dataset=DatasetSummary(
             id="workflow-signals",
@@ -448,9 +536,14 @@ def _workspace(
             updated_at=generated_at,
             completeness=94.6,
             validity=97.1,
+            schema_contract=SchemaContract(
+                columns="evolve",
+                data_types="freeze",
+                on_violation="quarantine row",
+            ),
         ),
         generated_at=generated_at,
-        run_id=RUN_ID,
+        run_id=run_id,
         batches=batches,
         recipe=RecipeSummary(
             id="workflow-signals-v12",
@@ -461,6 +554,14 @@ def _workspace(
             operators=operators,
         ),
         runs=runs,
+        run_events=[
+            RunEvent(
+                run_id=run_id,
+                event_type="COMPLETE",
+                event_time=generated_at,
+                job="workflow-signals-v12",
+            )
+        ],
         outputs=[
             OutputSummary(
                 id="out_ready_parquet",
@@ -498,7 +599,7 @@ def _workspace(
             code_version="demo-a7c9f2b",
             input_snapshot="quality_2026-08-29_0914",
             output_snapshot="signals_2026-08-29_0914",
-            run_id=RUN_ID,
+            run_id=run_id,
         ),
         signal_distribution=dict(distribution),
         schema_before=[
@@ -522,14 +623,19 @@ def _workspace(
 
 
 def run_pipeline(
-    raw_dir: Path, artifact_dir: Path, web_fixture: Path | None = None
+    raw_dir: Path,
+    artifact_dir: Path,
+    web_fixture: Path | None = None,
+    *,
+    run_id: str = RUN_ID,
+    additional_raw_dirs: Iterable[Path] = (),
 ) -> WorkspaceResponse:
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    raw = _load_events(raw_dir)
+    raw = _load_events((raw_dir, *additional_raw_dirs))
     normalized = _normalize(raw)
-    private, privacy_decisions = _privacy_filter(normalized)
-    quality, quality_decisions = _quality_filter(private)
-    signals, signal_decisions = _extract_signals(quality)
+    private, privacy_decisions = _privacy_filter(normalized, run_id)
+    quality, quality_decisions = _quality_filter(private, run_id)
+    signals, signal_decisions = _extract_signals(quality, run_id)
     review = [row for row in signals if row["decision"] == "review"]
     curated = [row for row in signals if row["decision"] == "accepted"]
 
@@ -550,7 +656,7 @@ def run_pipeline(
         for decision in decisions:
             handle.write(json.dumps(decision, sort_keys=True) + "\n")
 
-    workspace = _workspace(raw, normalized, private, quality, signals)
+    workspace = _workspace(raw, normalized, private, quality, signals, run_id)
     workspace_path = artifact_dir / "workspace.json"
     workspace_path.write_text(workspace.model_dump_json(indent=2), encoding="utf-8")
     if web_fixture:

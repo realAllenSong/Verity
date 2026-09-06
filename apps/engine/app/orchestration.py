@@ -2,7 +2,7 @@
 
 The core recipe runner is deliberately orchestration-neutral. This module exposes
 the same contract to Dagster when the optional dependency group is installed,
-while local development and the future Go control plane use identical artifacts.
+while local development and the Go control plane use identical artifacts.
 """
 
 from __future__ import annotations

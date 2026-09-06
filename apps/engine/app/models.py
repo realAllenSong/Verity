@@ -27,6 +27,13 @@ class DatasetSummary(BaseModel):
     completeness: float
     validity: float
     state: Literal["ready", "processing", "attention"] = "ready"
+    schema_contract: SchemaContract
+
+
+class SchemaContract(BaseModel):
+    columns: Literal["evolve", "freeze"]
+    data_types: Literal["evolve", "freeze"]
+    on_violation: Literal["fail run", "quarantine row", "discard value"]
 
 
 class BatchSummary(BaseModel):
@@ -46,6 +53,15 @@ class PipelineStage(BaseModel):
     description: str
     operator: str
     status: Literal["complete", "review", "idle"] = "complete"
+    checks: list[QualityCheck] = Field(default_factory=list)
+
+
+class QualityCheck(BaseModel):
+    id: str
+    label: str
+    state: Literal["passed", "warning", "failed"]
+    severity: Literal["info", "warning", "blocking"]
+    observed: str
 
 
 class RecipeOperator(BaseModel):
@@ -75,6 +91,16 @@ class RunSummary(BaseModel):
     ready_count: int
     review_count: int
     state: Literal["succeeded", "warning", "failed", "running"]
+    attempt: int = 1
+    failure_reason: str | None = None
+
+
+class RunEvent(BaseModel):
+    run_id: str
+    event_type: Literal["START", "RUNNING", "COMPLETE", "ABORT", "FAIL"]
+    event_time: str
+    job: str
+    message: str | None = None
 
 
 class OutputSummary(BaseModel):
@@ -129,6 +155,7 @@ class WorkspaceResponse(BaseModel):
     batches: list[BatchSummary]
     recipe: RecipeSummary
     runs: list[RunSummary]
+    run_events: list[RunEvent] = Field(default_factory=list)
     outputs: list[OutputSummary]
     stages: list[PipelineStage]
     records: list[EvidenceRecord]

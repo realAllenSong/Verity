@@ -24,26 +24,13 @@ function DecisionIcon({ decision }: { decision: Decision }) {
 
 export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecision }: RecordTableProps) {
   if (!records.length) {
-    return (
-      <div className="empty-state">
-        <strong>No records match this view.</strong>
-        <span>Choose another stage or clear the active filter.</span>
-      </div>
-    );
+    return <div className="empty-state"><strong>No records match this view.</strong><span>Choose another stage or clear the active filter.</span></div>;
   }
 
   return (
     <div className="record-table-wrap">
       <table className="record-table">
-        <thead>
-          <tr>
-            <th>Record</th>
-            <th>Before</th>
-            <th>After</th>
-            <th>Quality</th>
-            <th>Decision</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Record</th><th>Transformation</th><th>Quality</th><th>Decision</th></tr></thead>
         <tbody>
           {records.map((record) => (
             <tr
@@ -56,20 +43,18 @@ export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecisio
               }}
             >
               <td>
-                <span className="record-id"><CaretRightIcon size={13} /><code>{record.id.replace("evt_", "rec_")}</code></span>
+                <span className="record-cell">
+                  <CaretRightIcon size={14} />
+                  <span><code>{record.id.replace("evt_", "rec_")}</code><small>{record.signal_type.replaceAll("_", " ")}</small></span>
+                </span>
               </td>
-              <td><FieldPreview fields={record.before_fields} /></td>
-              <td><FieldPreview fields={record.after_fields} /></td>
-              <td>
-                <span className="quality-cell"><code>{record.quality_score.toFixed(2)}</code><i><b style={{ width: `${record.quality_score * 100}%` }} /></i></span>
-              </td>
+              <td><TransformationPreview before={record.before_fields} after={record.after_fields} /></td>
+              <td><span className="quality-cell"><strong>{Math.round(record.quality_score * 100)}%</strong><i><b style={{ width: `${record.quality_score * 100}%` }} /></i></span></td>
               <td onClick={(event) => event.stopPropagation()}>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger>
                     <button className="decision-trigger" data-decision={record.decision} type="button">
-                      <DecisionIcon decision={record.decision} />
-                      {decisionLabel[record.decision]}
-                      <CaretDownIcon size={13} />
+                      <DecisionIcon decision={record.decision} />{decisionLabel[record.decision]}<CaretDownIcon size={13} />
                     </button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content align="end" size="1">
@@ -88,13 +73,14 @@ export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecisio
   );
 }
 
-function FieldPreview({ fields }: { fields: Record<string, string> }) {
+function TransformationPreview({ before, after }: { before: Record<string, string>; after: Record<string, string> }) {
+  const [beforeKey, beforeValue] = Object.entries(before)[0] ?? ["input", "—"];
+  const [afterKey, afterValue] = Object.entries(after)[0] ?? ["output", "—"];
   return (
-    <span className="field-preview">
-      {Object.entries(fields).slice(0, 2).map(([key, value]) => (
-        <code key={key}><b>{key}</b>: {value}</code>
-      ))}
-      {Object.keys(fields).length > 2 ? <small>+{Object.keys(fields).length - 2}</small> : null}
+    <span className="transformation-preview">
+      <span><small>{beforeKey}</small><code>{beforeValue}</code></span>
+      <span aria-hidden="true">→</span>
+      <span><small>{afterKey}</small><code>{afterValue}</code></span>
     </span>
   );
 }

@@ -12,6 +12,13 @@ export interface DatasetSummary {
   completeness: number;
   validity: number;
   state: "ready" | "processing" | "attention";
+  schema_contract?: SchemaContract;
+}
+
+export interface SchemaContract {
+  columns: "evolve" | "freeze";
+  data_types: "evolve" | "freeze";
+  on_violation: "fail run" | "quarantine row" | "discard value";
 }
 
 export interface BatchSummary {
@@ -21,6 +28,15 @@ export interface BatchSummary {
   record_count: number;
   field_count: number;
   state: "complete" | "staged" | "failed";
+  checksum?: string;
+}
+
+export interface QualityCheck {
+  id: string;
+  label: string;
+  state: "passed" | "warning" | "failed";
+  severity: "info" | "warning" | "blocking";
+  observed: string;
 }
 
 export interface PipelineStage {
@@ -31,6 +47,7 @@ export interface PipelineStage {
   description: string;
   operator: string;
   status: "complete" | "review" | "idle";
+  checks?: QualityCheck[];
 }
 
 export interface RecipeOperator {
@@ -60,6 +77,16 @@ export interface RunSummary {
   ready_count: number;
   review_count: number;
   state: "succeeded" | "warning" | "failed" | "running";
+  attempt?: number;
+  failure_reason?: string | null;
+}
+
+export interface RunEvent {
+  run_id: string;
+  event_type: "START" | "RUNNING" | "COMPLETE" | "FAIL";
+  event_time: string;
+  job: string;
+  message?: string | null;
 }
 
 export interface OutputSummary {
@@ -115,4 +142,5 @@ export interface WorkspaceData {
   schema_before: Array<{ field: string; type: string; policy: string }>;
   schema_after: Array<{ field: string; type: string; policy: string }>;
   copy_policy: { raw: string; cloud: string };
+  run_events?: RunEvent[];
 }

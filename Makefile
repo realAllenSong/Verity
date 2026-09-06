@@ -2,26 +2,29 @@
 
 bootstrap:
 	npm install
-	cd apps/api && uv sync --extra dev
+	cd apps/engine && uv sync --extra dev
+	cd apps/api && go mod download
 
 generate:
-	cd apps/api && uv run python -m app.cli generate --root ../..
+	cd apps/engine && uv run python -m app.cli generate --root ../.. --refresh-fixtures --write-web-fixture
 
 contracts:
-	cd apps/api && uv run python -m app.export_openapi
+	python3 -m json.tool packages/contracts/openapi.json >/dev/null
 
 api:
-	cd apps/api && uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+	cd apps/api && go run ./cmd/verity-api
 
 web:
 	npm run dev
 
 test:
-	cd apps/api && uv run pytest
+	cd apps/engine && uv run pytest
+	cd apps/api && go test ./...
 	npm run test:web
 
 lint:
-	cd apps/api && uv run ruff check app tests
+	cd apps/engine && uv run ruff check app tests
+	cd apps/api && go vet ./...
 	npm run lint
 
 build:

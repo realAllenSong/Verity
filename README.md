@@ -2,27 +2,30 @@
 
 Verity is a white-box data preparation workbench. It turns noisy, heterogeneous events into reviewable, reproducible datasets for analytics, recommendation systems, traditional ML, transformer training, and future post-training workflows.
 
-![Verity workbench](docs/screenshots/verity-complete-pipeline.png)
+![Verity pipeline workbench](docs/screenshots/verity-go-pipeline.png)
 
-The repository is dataset-first. Input arrives as independent batches of generic records; an optional origin can live in metadata, but it never changes the platform contract or primary UI. Any file, service, model harness, database, document system, or internal application can emit the small `data-record` envelope and enter the same pipeline.
+The repository is dataset-first. Inputs arrive as independent batches of generic records. Origin can be carried in optional metadata, but the pipeline and UI do not depend on a fixed list of sources.
 
 ## What works now
 
-- 3,842 deterministic, deliberately noisy demo records across six independently traceable batches
-- versioned stages for normalization, privacy, quality, extraction, review, and publication
-- Parquet stage snapshots, JSONL decision lineage, DuckDB inspection, and Polars transforms
-- a human review loop for uncertain records
+- 3,842 deterministic, deliberately noisy demo records across six traceable batches
+- versioned normalization, privacy, quality, extraction, review, and publication stages
+- Parquet snapshots, JSONL decision lineage, DuckDB inspection, and Polars transforms
+- a persistent human review loop for uncertain decisions
 - complete Pipeline, Data, Recipes, Runs, Review, and Outputs workspaces
-- local JSON, JSONL, and CSV inspection with explicit batch staging
-- a clean Next.js workbench with progressive disclosure and responsive views
-- a FastAPI control plane with checked-in JSON Schema and OpenAPI contracts
-- an optional Dagster adapter without coupling the core recipe runner to one orchestrator
+- local JSON, JSONL, and CSV batch staging with checksums and idempotent retries
+- a Go control plane with strict requests, atomic local state, ETags, readiness, optional bearer auth, structured errors, request IDs, access logs, and graceful shutdown
+- a replaceable Python data-plane worker behind a process contract
+- checked-in JSON Schema and OpenAPI contracts
+- optional Dagster orchestration without coupling the core engine to one scheduler
 
 The demo funnel is reproducible: `3,842 raw -> 3,611 normalized -> 3,276 privacy-safe -> 2,914 quality-passed -> 1,086 extracted -> 42 review + 1,044 ready`.
 
+This is a robust local reference product, not an enterprise GA claim. Production connectors, SSO/RBAC, managed secrets, tenant isolation, distributed durable execution, retention enforcement, and scale/security testing remain explicit next phases. See [production readiness](docs/production-readiness.md).
+
 ## Run locally
 
-Requirements: Node.js 22+, Python 3.11+, and [uv](https://docs.astral.sh/uv/).
+Requirements: Node.js 22+, Go 1.24+, Python 3.11+, and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 make bootstrap
@@ -36,7 +39,7 @@ In a second terminal:
 make web
 ```
 
-Open `http://127.0.0.1:3000`. The web app falls back to the checked-in synthetic snapshot when the API is not running.
+Open `http://127.0.0.1:3000`. The web app uses the checked-in synthetic snapshot when the API is unavailable.
 
 Run unit, contract, lint, and production-build verification with:
 
@@ -60,21 +63,22 @@ docker compose up --build
 
 ```text
 apps/web                 Next.js workbench
-apps/api                 FastAPI reference control plane and local recipe runner
+apps/api                 Go control plane and HTTP API
+apps/engine              Python/Polars/DuckDB data-plane worker
 packages/contracts       Language-neutral event, operator, decision, and API contracts
 sample_data/raw          Generated local JSONL inputs (ignored by Git)
-artifacts                Generated Parquet and decision artifacts (ignored by Git)
-docs                     Architecture, privacy, reuse decisions, and visual QA
+artifacts                Generated state, Parquet, and decision artifacts (ignored by Git)
+docs                     Architecture, privacy, reuse, readiness, and visual QA
 ```
 
-The FastAPI service is a replaceable reference implementation. A future Go control plane can implement `packages/contracts/openapi.json` and reuse the same JSON schemas and artifact conventions.
+The Go service owns API behavior, state, idempotency, lifecycle, and observability. The Python worker owns columnar transformation and artifact generation. Their boundary is intentionally language-neutral so the worker can later be replaced or invoked by Temporal, Dagster, or the firm's Go agent framework without redesigning the product.
 
 ## Design principles
 
-- White-box by default: every stage exposes input, output, retention, operator version, and decision reason.
-- Progressive disclosure: each workspace shows only its primary decision; schema, lineage, evidence, and configuration open only when requested.
-- Local-first privacy: raw prompts, files, and message bodies are treated as local-only. Shareable layers contain redacted events, derived signals, provenance, and policy decisions.
-- Human judgment at uncertainty: low-confidence records branch to review instead of silently entering training data.
-- Portable contracts: batch producers and operators depend on schemas, not on Python or a specific orchestrator.
+- White-box by default: each stage exposes input, output, retention, operator version, checks, and decision reason.
+- Progressive disclosure: the first view answers what happened; schema, lineage, evidence, and configuration open on demand.
+- Local-first privacy: raw prompts, files, and message bodies remain local-only. Shareable layers contain approved derived signals and audit metadata.
+- Human judgment at uncertainty: low-confidence records branch to review instead of silently entering model data.
+- Portable contracts: producers and operators depend on schemas, not a source logo, language, or scheduler.
 
-See [architecture](docs/architecture.md), [privacy boundary](docs/privacy.md), and [open-source reuse](docs/oss-reuse.md) for the implementation rationale.
+See [architecture](docs/architecture.md), [privacy boundary](docs/privacy.md), [open-source reuse](docs/oss-reuse.md), and [production readiness](docs/production-readiness.md).

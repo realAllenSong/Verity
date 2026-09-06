@@ -5,14 +5,13 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       VERITY_ARTIFACT_ROOT: /workspace/artifacts
-      VERITY_SAMPLE_ROOT: /workspace/sample_data/raw
     ports:
       - "8000:8000"
     volumes:
       - verity-artifacts:/workspace/artifacts
       - verity-samples:/workspace/sample_data/raw
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
       interval: 10s
       timeout: 3s
       retries: 5

@@ -9,7 +9,12 @@
     "updated_at": "2026-08-29T09:14:00+00:00",
     "completeness": 94.6,
     "validity": 97.1,
-    "state": "ready"
+    "state": "ready",
+    "schema_contract": {
+      "columns": "evolve",
+      "data_types": "freeze",
+      "on_violation": "quarantine row"
+    }
   },
   "generated_at": "2026-08-29T09:14:00+00:00",
   "run_id": "run_2026-08-29_0914",
@@ -17,49 +22,49 @@
     {
       "id": "batch_2026_08_24_01",
       "filename": "batch_2026_08_24_01.jsonl",
-      "added_at": "2026-08-24T09:10:00+00:00",
+      "added_at": "2026-08-24T09:00:00+00:00",
       "record_count": 641,
-      "field_count": 18,
+      "field_count": 8,
       "state": "complete"
     },
     {
       "id": "batch_2026_08_25_01",
       "filename": "batch_2026_08_25_01.jsonl",
-      "added_at": "2026-08-25T10:11:00+00:00",
+      "added_at": "2026-08-25T09:00:01+00:00",
       "record_count": 641,
-      "field_count": 18,
+      "field_count": 8,
       "state": "complete"
     },
     {
       "id": "batch_2026_08_26_01",
       "filename": "batch_2026_08_26_01.jsonl",
-      "added_at": "2026-08-26T11:12:00+00:00",
+      "added_at": "2026-08-26T09:00:02+00:00",
       "record_count": 640,
-      "field_count": 18,
+      "field_count": 8,
       "state": "complete"
     },
     {
       "id": "batch_2026_08_27_01",
       "filename": "batch_2026_08_27_01.jsonl",
-      "added_at": "2026-08-27T12:13:00+00:00",
+      "added_at": "2026-08-27T09:00:03+00:00",
       "record_count": 640,
-      "field_count": 18,
+      "field_count": 8,
       "state": "complete"
     },
     {
       "id": "batch_2026_08_28_01",
       "filename": "batch_2026_08_28_01.jsonl",
-      "added_at": "2026-08-28T13:14:00+00:00",
+      "added_at": "2026-08-28T09:00:04+00:00",
       "record_count": 640,
-      "field_count": 18,
+      "field_count": 8,
       "state": "complete"
     },
     {
       "id": "batch_2026_08_29_01",
       "filename": "batch_2026_08_29_01.jsonl",
-      "added_at": "2026-08-29T14:15:00+00:00",
+      "added_at": "2026-08-29T09:00:05+00:00",
       "record_count": 640,
-      "field_count": 18,
+      "field_count": 8,
       "state": "complete"
     }
   ],
@@ -122,6 +127,18 @@
   },
   "runs": [
     {
+      "id": "run_2026-08-29_0914",
+      "recipe_version": 12,
+      "started_at": "2026-08-29T09:14:00+00:00",
+      "duration_seconds": 138,
+      "record_count": 3842,
+      "ready_count": 1044,
+      "review_count": 42,
+      "state": "succeeded",
+      "attempt": 1,
+      "failure_reason": null
+    },
+    {
       "id": "run_2026_08_29_0914",
       "recipe_version": 12,
       "started_at": "2026-08-29T09:14:00+00:00",
@@ -129,7 +146,9 @@
       "record_count": 3842,
       "ready_count": 1044,
       "review_count": 42,
-      "state": "succeeded"
+      "state": "succeeded",
+      "attempt": 1,
+      "failure_reason": null
     },
     {
       "id": "run_2026_08_28_0877",
@@ -139,7 +158,9 @@
       "record_count": 3811,
       "ready_count": 1025,
       "review_count": 45,
-      "state": "succeeded"
+      "state": "succeeded",
+      "attempt": 1,
+      "failure_reason": null
     },
     {
       "id": "run_2026_08_27_0840",
@@ -149,7 +170,9 @@
       "record_count": 3780,
       "ready_count": 1006,
       "review_count": 48,
-      "state": "succeeded"
+      "state": "succeeded",
+      "attempt": 1,
+      "failure_reason": null
     },
     {
       "id": "run_2026_08_26_0803",
@@ -159,7 +182,9 @@
       "record_count": 3749,
       "ready_count": 987,
       "review_count": 51,
-      "state": "succeeded"
+      "state": "succeeded",
+      "attempt": 1,
+      "failure_reason": null
     },
     {
       "id": "run_2026_08_25_0766",
@@ -169,7 +194,9 @@
       "record_count": 3718,
       "ready_count": 968,
       "review_count": 54,
-      "state": "succeeded"
+      "state": "succeeded",
+      "attempt": 1,
+      "failure_reason": null
     },
     {
       "id": "run_2026_08_24_0729",
@@ -179,7 +206,9 @@
       "record_count": 3687,
       "ready_count": 949,
       "review_count": 57,
-      "state": "warning"
+      "state": "warning",
+      "attempt": 1,
+      "failure_reason": null
     },
     {
       "id": "run_2026_08_23_0692",
@@ -189,17 +218,18 @@
       "record_count": 3656,
       "ready_count": 930,
       "review_count": 60,
-      "state": "succeeded"
-    },
+      "state": "succeeded",
+      "attempt": 1,
+      "failure_reason": null
+    }
+  ],
+  "run_events": [
     {
-      "id": "run_2026_08_22_0655",
-      "recipe_version": 11,
-      "started_at": "2026-08-22T09:21:00+00:00",
-      "duration_seconds": 187,
-      "record_count": 3625,
-      "ready_count": 911,
-      "review_count": 63,
-      "state": "failed"
+      "run_id": "run_2026-08-29_0914",
+      "event_type": "COMPLETE",
+      "event_time": "2026-08-29T09:14:00+00:00",
+      "job": "workflow-signals-v12",
+      "message": null
     }
   ],
   "outputs": [
@@ -239,7 +269,16 @@
       "input_count": 3842,
       "description": "Immutable input records",
       "operator": "parse_record_v1",
-      "status": "complete"
+      "status": "complete",
+      "checks": [
+        {
+          "id": "raw_artifact",
+          "label": "Artifact readable",
+          "state": "passed",
+          "severity": "blocking",
+          "observed": "3842 records"
+        }
+      ]
     },
     {
       "id": "normalize",
@@ -248,7 +287,23 @@
       "input_count": 3842,
       "description": "Canonical fields and deduplication",
       "operator": "normalize_fields_v2",
-      "status": "complete"
+      "status": "complete",
+      "checks": [
+        {
+          "id": "normalize_artifact",
+          "label": "Artifact readable",
+          "state": "passed",
+          "severity": "blocking",
+          "observed": "3611 records"
+        },
+        {
+          "id": "normalize_retention",
+          "label": "Retention accounted for",
+          "state": "passed",
+          "severity": "warning",
+          "observed": "94.0% retained"
+        }
+      ]
     },
     {
       "id": "privacy",
@@ -257,7 +312,23 @@
       "input_count": 3611,
       "description": "Redaction and policy quarantine",
       "operator": "privacy_filter_v2",
-      "status": "complete"
+      "status": "complete",
+      "checks": [
+        {
+          "id": "privacy_artifact",
+          "label": "Artifact readable",
+          "state": "passed",
+          "severity": "blocking",
+          "observed": "3276 records"
+        },
+        {
+          "id": "privacy_retention",
+          "label": "Retention accounted for",
+          "state": "passed",
+          "severity": "warning",
+          "observed": "90.7% retained"
+        }
+      ]
     },
     {
       "id": "quality",
@@ -266,7 +337,23 @@
       "input_count": 3276,
       "description": "Completeness and validity checks",
       "operator": "quality_gate_v2",
-      "status": "complete"
+      "status": "complete",
+      "checks": [
+        {
+          "id": "quality_artifact",
+          "label": "Artifact readable",
+          "state": "passed",
+          "severity": "blocking",
+          "observed": "2914 records"
+        },
+        {
+          "id": "quality_retention",
+          "label": "Retention accounted for",
+          "state": "passed",
+          "severity": "warning",
+          "observed": "88.9% retained"
+        }
+      ]
     },
     {
       "id": "signals",
@@ -275,7 +362,23 @@
       "input_count": 2914,
       "description": "Structured signal extraction",
       "operator": "signal_extract_v3",
-      "status": "complete"
+      "status": "complete",
+      "checks": [
+        {
+          "id": "signals_artifact",
+          "label": "Artifact readable",
+          "state": "passed",
+          "severity": "blocking",
+          "observed": "1086 records"
+        },
+        {
+          "id": "signals_retention",
+          "label": "Retention accounted for",
+          "state": "passed",
+          "severity": "warning",
+          "observed": "37.3% retained"
+        }
+      ]
     },
     {
       "id": "review",
@@ -284,7 +387,23 @@
       "input_count": 1086,
       "description": "Uncertain records only",
       "operator": "review_route_v1",
-      "status": "review"
+      "status": "review",
+      "checks": [
+        {
+          "id": "review_artifact",
+          "label": "Artifact readable",
+          "state": "passed",
+          "severity": "blocking",
+          "observed": "42 records"
+        },
+        {
+          "id": "review_retention",
+          "label": "Retention accounted for",
+          "state": "passed",
+          "severity": "warning",
+          "observed": "3.9% retained"
+        }
+      ]
     },
     {
       "id": "curated",
@@ -293,7 +412,23 @@
       "input_count": 1086,
       "description": "Versioned output snapshot",
       "operator": "publish_snapshot_v1",
-      "status": "complete"
+      "status": "complete",
+      "checks": [
+        {
+          "id": "curated_artifact",
+          "label": "Artifact readable",
+          "state": "passed",
+          "severity": "blocking",
+          "observed": "1044 records"
+        },
+        {
+          "id": "curated_retention",
+          "label": "Retention accounted for",
+          "state": "passed",
+          "severity": "warning",
+          "observed": "96.1% retained"
+        }
+      ]
     }
   ],
   "records": [

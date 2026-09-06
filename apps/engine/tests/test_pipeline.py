@@ -27,6 +27,9 @@ def test_pipeline_produces_expected_white_box_funnel(tmp_path):
     assert workspace.dataset.record_count == 3_842
     assert workspace.decision_breakdown.accepted == 1_044
     assert workspace.decision_breakdown.review == 42
+    assert workspace.dataset.schema_contract.on_violation == "quarantine row"
+    assert all(stage.checks for stage in workspace.stages)
+    assert workspace.run_events[0].event_type == "COMPLETE"
 
 
 def test_shareable_artifacts_remove_secret_and_email_patterns(tmp_path):

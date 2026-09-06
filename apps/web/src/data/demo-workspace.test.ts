@@ -20,5 +20,7 @@ describe("demo workspace contract", () => {
     expect(workspace.records.every((record) => record.batch_id.startsWith("batch_"))).toBe(true);
     expect(workspace.records.every((record) => Object.keys(record.before_fields).length > 0)).toBe(true);
     expect(new Set(workspace.records.map((record) => record.signal_type)).size).toBeGreaterThan(5);
+    expect(workspace.dataset.schema_contract.on_violation).toBe("quarantine row");
+    expect(workspace.stages.every((stage) => stage.checks.length > 0)).toBe(true);
   });
 });

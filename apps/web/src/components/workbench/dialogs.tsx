@@ -84,7 +84,12 @@ export function AddDataDialog({ open, onOpenChange, datasetId, onStaged }: {
     try {
       if (apiUrl) {
         const response = await fetch(`${apiUrl}/api/v1/datasets/${datasetId}/batches`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, records: rows }),
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": `${file.name}:${file.size}:${file.lastModified}`,
+          },
+          body: JSON.stringify({ filename: file.name, records: rows }),
         });
         if (!response.ok) throw new Error("stage failed");
         const payload = await response.json() as { batch: BatchSummary };

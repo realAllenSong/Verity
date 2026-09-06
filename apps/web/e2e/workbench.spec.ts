@@ -39,3 +39,11 @@ test("review resolution updates the shared queue state", async ({ page }) => {
   await page.getByRole("button", { name: "Accept" }).click();
   await expect(page.getByText("41 uncertain decisions need a person.")).toBeVisible();
 });
+
+test("mobile workspace has accessible navigation without page overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Pipeline", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("button", { name: "Review", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
