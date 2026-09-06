@@ -1,0 +1,39 @@
+services:
+  temporal:
+    image: temporalio/admin-tools:1.29.7-tctl-1.18.4-cli-1.7.2
+    entrypoint: ["temporal"]
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--port", "7233"]
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    image: verity-api:local
+    command: ["/usr/local/bin/verity-worker"]
+    environment:
+      VERITY_TEMPORAL_ADDRESS: temporal:7233
+      VERITY_TEMPORAL_NAMESPACE: default
+      VERITY_TEMPORAL_TASK_QUEUE: verity-pipeline
+    volumes:
+      - verity-artifacts:/workspace/artifacts
+      - verity-samples:/workspace/sample_data/raw
+    depends_on:
+      temporal:
+        condition: service_healthy
+
+  api:
+    environment:
+      VERITY_ORCHESTRATOR: temporal
+      VERITY_TEMPORAL_ADDRESS: temporal:7233
+      VERITY_TEMPORAL_NAMESPACE: default
+      VERITY_TEMPORAL_TASK_QUEUE: verity-pipeline
+    depends_on:
+      temporal:
+        condition: service_healthy
+      worker:
+        condition: service_started

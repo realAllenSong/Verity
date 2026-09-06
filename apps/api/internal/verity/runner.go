@@ -1,12 +1,14 @@
 package verity
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os/exec"
+	"io"
+	"os"
 	"path/filepath"
-	"time"
 )
 
 type Engine interface {
@@ -14,92 +16,89 @@ type Engine interface {
 	Preview(ctx context.Context, runID, stageID string, limit int) ([]json.RawMessage, error)
 }
 
-type CommandEngine struct {
+// LocalEngine runs the complete data plane in-process. It is the dependency-free
+// default for laptops, CI, and single-workspace deployments.
+type LocalEngine struct {
 	RepoRoot     string
 	ArtifactsDir string
-	EngineDir    string
-	Timeout      time.Duration
+	RawDir       string
 }
 
-func (e CommandEngine) Run(ctx context.Context, runID string) error {
-	ctx, cancel := context.WithTimeout(ctx, e.timeout())
-	defer cancel()
-	command := exec.CommandContext(
-		ctx,
-		"uv",
-		"run",
-		"python",
-		"-m",
-		"app.cli",
-		"generate",
-		"--root",
-		e.RepoRoot,
-		"--run-id",
-		runID,
-		"--artifact-root",
-		e.ArtifactsDir,
-	)
-	command.Dir = e.EngineDir
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("data-plane run failed: %w: %s", err, bounded(output, 1200))
+func (e LocalEngine) Run(ctx context.Context, runID string) error {
+	rawDir := e.RawDir
+	if rawDir == "" {
+		rawDir = filepath.Join(e.RepoRoot, "sample_data", "raw")
 	}
-	return nil
+	_, err := RunPipeline(ctx, PipelineConfig{
+		RunID:       runID,
+		RawDirs:     []string{rawDir, filepath.Join(e.ArtifactsDir, "staged")},
+		ArtifactDir: filepath.Join(e.ArtifactsDir, runID),
+	})
+	return err
 }
 
-func (e CommandEngine) Preview(
+func (e LocalEngine) Preview(
 	ctx context.Context,
 	runID string,
 	stageID string,
 	limit int,
 ) ([]json.RawMessage, error) {
-	ctx, cancel := context.WithTimeout(ctx, e.timeout())
-	defer cancel()
-	command := exec.CommandContext(
-		ctx,
-		"uv",
-		"run",
-		"python",
-		"-m",
-		"app.cli",
-		"preview",
-		"--root",
-		e.RepoRoot,
-		"--run-id",
-		runID,
-		"--artifact-root",
-		e.ArtifactsDir,
-		"--stage",
-		stageID,
-		"--limit",
-		fmt.Sprintf("%d", limit),
-	)
-	command.Dir = e.EngineDir
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("stage preview failed: %w: %s", err, bounded(output, 1200))
+	if !validStageID(stageID) {
+		return nil, ErrNotFound
 	}
-	var rows []json.RawMessage
-	if err := json.Unmarshal(output, &rows); err != nil {
-		return nil, fmt.Errorf("decode stage preview: %w", err)
+	path := filepath.Join(e.ArtifactsDir, runID, stageID+".jsonl")
+	file, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("open stage artifact: %w", err)
+	}
+	defer file.Close()
+
+	limit = max(1, min(limit, 100))
+	rows := make([]json.RawMessage, 0, limit)
+	reader := bufio.NewReader(file)
+	for len(rows) < limit {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		line, readErr := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			line = bytesTrimSpace(line)
+			if len(line) > 0 {
+				if !json.Valid(line) {
+					return nil, fmt.Errorf("stage artifact contains invalid JSON")
+				}
+				rows = append(rows, json.RawMessage(append([]byte(nil), line...)))
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return nil, fmt.Errorf("read stage artifact: %w", readErr)
+		}
 	}
 	return rows, nil
 }
 
-func (e CommandEngine) WorkspacePath(runID string) string {
-	return filepath.Join(e.ArtifactsDir, runID, "workspace.json")
+func validStageID(value string) bool {
+	switch value {
+	case "raw", "normalize", "privacy", "quality", "signals", "review", "curated":
+		return true
+	default:
+		return false
+	}
 }
 
-func (e CommandEngine) timeout() time.Duration {
-	if e.Timeout <= 0 {
-		return 3 * time.Minute
+func bytesTrimSpace(value []byte) []byte {
+	start, end := 0, len(value)
+	for start < end && (value[start] == ' ' || value[start] == '\t' || value[start] == '\r' || value[start] == '\n') {
+		start++
 	}
-	return e.Timeout
-}
-
-func bounded(value []byte, limit int) string {
-	if len(value) <= limit {
-		return string(value)
+	for end > start && (value[end-1] == ' ' || value[end-1] == '\t' || value[end-1] == '\r' || value[end-1] == '\n') {
+		end--
 	}
-	return string(value[:limit]) + "..."
+	return value[start:end]
 }

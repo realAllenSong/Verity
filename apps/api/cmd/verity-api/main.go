@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,10 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/realAllenSong/OurData/apps/api/internal/verity"
+	"github.com/realAllenSong/Verity/apps/api/internal/verity"
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
+		healthcheck()
+		return
+	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	repoRoot := env("VERITY_REPO_ROOT", findRepoRoot())
 	artifacts := env("VERITY_ARTIFACT_ROOT", filepath.Join(repoRoot, "artifacts"))
@@ -23,20 +28,27 @@ func main() {
 		"VERITY_SEED_WORKSPACE",
 		filepath.Join(repoRoot, "apps", "web", "src", "data", "demo-workspace.json"),
 	)
-	engineDir := env("VERITY_ENGINE_DIR", filepath.Join(repoRoot, "apps", "engine"))
+	engine, closeEngine, err := configuredEngine(repoRoot, artifacts)
+	if err != nil {
+		logger.Error("initialize engine", "error", err)
+		os.Exit(1)
+	}
+	defer closeEngine()
 	store, err := verity.NewStore(verity.StoreConfig{
 		RepoRoot: repoRoot, SeedWorkspace: seed,
 		StatePath:    filepath.Join(artifacts, "control", "state.json"),
 		ArtifactsDir: artifacts,
-	}, verity.CommandEngine{
-		RepoRoot: repoRoot, ArtifactsDir: artifacts, EngineDir: engineDir,
-		Timeout: 3 * time.Minute,
-	})
+	}, engine)
 	if err != nil {
 		logger.Error("initialize store", "error", err)
 		os.Exit(1)
 	}
 
+	airbyte, err := configuredAirbyte()
+	if err != nil {
+		logger.Error("initialize Airbyte adapter", "error", err)
+		os.Exit(1)
+	}
 	handler := verity.NewHandler(store, verity.HTTPConfig{
 		APIToken: os.Getenv("VERITY_API_TOKEN"),
 		AllowedOrigin: origins(env(
@@ -48,6 +60,7 @@ func main() {
 			filepath.Join(repoRoot, "packages", "contracts", "openapi.json"),
 		),
 		RequestTimeout: 4 * time.Minute,
+		Airbyte:        airbyte,
 	}, logger)
 
 	server := &http.Server{
@@ -80,6 +93,50 @@ func main() {
 			logger.Error("api server stopped", "error", err)
 			os.Exit(1)
 		}
+	}
+}
+
+func configuredEngine(repoRoot, artifacts string) (verity.Engine, func(), error) {
+	rawDir := env("VERITY_RAW_DIR", filepath.Join(repoRoot, "sample_data", "raw"))
+	switch strings.ToLower(env("VERITY_ORCHESTRATOR", "local")) {
+	case "local":
+		return verity.LocalEngine{RepoRoot: repoRoot, ArtifactsDir: artifacts, RawDir: rawDir}, func() {}, nil
+	case "temporal":
+		engine, err := verity.NewTemporalEngine(verity.TemporalConfig{
+			Address:   env("VERITY_TEMPORAL_ADDRESS", "127.0.0.1:7233"),
+			Namespace: env("VERITY_TEMPORAL_NAMESPACE", "default"),
+			TaskQueue: env("VERITY_TEMPORAL_TASK_QUEUE", verity.DefaultTemporalTaskQueue),
+			RepoRoot:  repoRoot, ArtifactsDir: artifacts, RawDir: rawDir,
+		})
+		if err != nil {
+			return nil, func() {}, err
+		}
+		return engine, engine.Close, nil
+	default:
+		return nil, func() {}, fmt.Errorf("VERITY_ORCHESTRATOR must be local or temporal")
+	}
+}
+
+func configuredAirbyte() (*verity.AirbyteClient, error) {
+	baseURL := strings.TrimSpace(os.Getenv("VERITY_AIRBYTE_BASE_URL"))
+	if baseURL == "" {
+		return nil, nil
+	}
+	return verity.NewAirbyteClient(baseURL, os.Getenv("VERITY_AIRBYTE_TOKEN"), nil)
+}
+
+func healthcheck() {
+	address := env("VERITY_HEALTHCHECK_URL", "http://127.0.0.1:8000/ready")
+	client := &http.Client{Timeout: 3 * time.Second}
+	response, err := client.Get(address)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "readiness returned %s\n", response.Status)
+		os.Exit(1)
 	}
 }
 

@@ -27,6 +27,22 @@
         "title": "BatchCreate",
         "type": "object"
       },
+      "AirbyteJob": {
+        "properties": {
+          "job_id": {"type": "integer"},
+          "status": {"type": "string"},
+          "job_type": {"type": "string"}
+        },
+        "required": ["job_id", "status"],
+        "type": "object"
+      },
+      "AirbyteSyncRequest": {
+        "properties": {
+          "connection_id": {"minLength": 1, "maxLength": 128, "type": "string"}
+        },
+        "required": ["connection_id"],
+        "type": "object"
+      },
       "BatchStageResponse": {
         "properties": {
           "batch": {
@@ -862,9 +878,9 @@
     }
   },
   "info": {
-    "summary": "Go control plane for local-first, white-box data curation.",
+    "summary": "All-Go local-first, white-box data curation with optional ingestion and durable orchestration adapters.",
     "title": "Verity API",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -935,6 +951,44 @@
           }
         },
         "summary": "Stage Batch"
+      }
+    },
+    "/api/v1/integrations/airbyte/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_airbyte_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {"minimum": 1, "type": "integer"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AirbyteJob"}}},
+            "description": "Airbyte job status"
+          },
+          "503": {"description": "Airbyte integration is not configured"}
+        },
+        "summary": "Get Airbyte Job"
+      }
+    },
+    "/api/v1/integrations/airbyte/syncs": {
+      "post": {
+        "operationId": "trigger_airbyte_sync",
+        "requestBody": {
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AirbyteSyncRequest"}}},
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AirbyteJob"}}},
+            "description": "Airbyte sync accepted"
+          },
+          "503": {"description": "Airbyte integration is not configured"}
+        },
+        "summary": "Trigger Airbyte Sync"
       }
     },
     "/api/v1/review-queue": {

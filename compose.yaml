@@ -1,17 +1,22 @@
 services:
   api:
+    image: verity-api:local
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     environment:
       VERITY_ARTIFACT_ROOT: /workspace/artifacts
+      VERITY_ALLOWED_ORIGINS: ${VERITY_ALLOWED_ORIGINS:-http://127.0.0.1:3000,http://localhost:3000}
+      VERITY_API_TOKEN: ${VERITY_API_TOKEN:-}
+      VERITY_AIRBYTE_BASE_URL: ${VERITY_AIRBYTE_BASE_URL:-}
+      VERITY_AIRBYTE_TOKEN: ${VERITY_AIRBYTE_TOKEN:-}
     ports:
       - "8000:8000"
     volumes:
       - verity-artifacts:/workspace/artifacts
       - verity-samples:/workspace/sample_data/raw
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
+      test: ["CMD", "/usr/local/bin/verity-api", "healthcheck"]
       interval: 10s
       timeout: 3s
       retries: 5

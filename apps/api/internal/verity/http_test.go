@@ -205,10 +205,14 @@ func TestOpenAPIContainsEveryPublicOperation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !json.Valid(data) {
+		t.Fatal("OpenAPI contract is not valid JSON")
+	}
 	for _, path := range []string{
 		"/health", "/ready", "/api/v1/workspace", "/api/v1/runs",
 		"/api/v1/datasets/{dataset_id}/batches", "/api/v1/review-queue",
 		"/api/v1/reviews/{record_id}", "/api/v1/stages/{stage_id}/preview",
+		"/api/v1/integrations/airbyte/syncs", "/api/v1/integrations/airbyte/jobs/{job_id}",
 	} {
 		if !strings.Contains(string(data), `"`+path+`"`) {
 			t.Fatalf("OpenAPI contract is missing %s", path)

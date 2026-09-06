@@ -4,9 +4,9 @@
     "name": "Workflow signals",
     "description": "A reusable dataset prepared from incrementally added batches.",
     "record_count": 3842,
-    "field_count": 18,
+    "field_count": 8,
     "batch_count": 6,
-    "updated_at": "2026-08-29T09:14:00+00:00",
+    "updated_at": "2026-08-29T09:14:00Z",
     "completeness": 94.6,
     "validity": 97.1,
     "state": "ready",
@@ -16,13 +16,13 @@
       "on_violation": "quarantine row"
     }
   },
-  "generated_at": "2026-08-29T09:14:00+00:00",
+  "generated_at": "2026-08-29T09:14:00Z",
   "run_id": "run_2026-08-29_0914",
   "batches": [
     {
       "id": "batch_2026_08_24_01",
       "filename": "batch_2026_08_24_01.jsonl",
-      "added_at": "2026-08-24T09:00:00+00:00",
+      "added_at": "2026-08-24T09:00:00Z",
       "record_count": 641,
       "field_count": 8,
       "state": "complete"
@@ -30,7 +30,7 @@
     {
       "id": "batch_2026_08_25_01",
       "filename": "batch_2026_08_25_01.jsonl",
-      "added_at": "2026-08-25T09:00:01+00:00",
+      "added_at": "2026-08-25T09:00:01Z",
       "record_count": 641,
       "field_count": 8,
       "state": "complete"
@@ -38,7 +38,7 @@
     {
       "id": "batch_2026_08_26_01",
       "filename": "batch_2026_08_26_01.jsonl",
-      "added_at": "2026-08-26T09:00:02+00:00",
+      "added_at": "2026-08-26T09:00:02Z",
       "record_count": 640,
       "field_count": 8,
       "state": "complete"
@@ -46,7 +46,7 @@
     {
       "id": "batch_2026_08_27_01",
       "filename": "batch_2026_08_27_01.jsonl",
-      "added_at": "2026-08-27T09:00:03+00:00",
+      "added_at": "2026-08-27T09:00:03Z",
       "record_count": 640,
       "field_count": 8,
       "state": "complete"
@@ -54,7 +54,7 @@
     {
       "id": "batch_2026_08_28_01",
       "filename": "batch_2026_08_28_01.jsonl",
-      "added_at": "2026-08-28T09:00:04+00:00",
+      "added_at": "2026-08-28T09:00:04Z",
       "record_count": 640,
       "field_count": 8,
       "state": "complete"
@@ -62,7 +62,7 @@
     {
       "id": "batch_2026_08_29_01",
       "filename": "batch_2026_08_29_01.jsonl",
-      "added_at": "2026-08-29T09:00:05+00:00",
+      "added_at": "2026-08-29T09:00:05Z",
       "record_count": 640,
       "field_count": 8,
       "state": "complete"
@@ -73,14 +73,14 @@
     "name": "Workflow signals recipe",
     "version": 12,
     "state": "published",
-    "updated_at": "2026-08-29T09:14:00+00:00",
+    "updated_at": "2026-08-29T09:14:00Z",
     "operators": [
       {
         "id": "parse",
         "label": "Parse record",
-        "description": "Read JSON, JSONL, or CSV into one envelope.",
+        "description": "Read JSONL into one envelope.",
         "operator": "parse_record",
-        "version": "1.4",
+        "version": "1.5",
         "state": "configured"
       },
       {
@@ -88,7 +88,7 @@
         "label": "Normalize fields",
         "description": "Standardize field names, types, and timestamps.",
         "operator": "normalize_fields",
-        "version": "2.1",
+        "version": "2.2",
         "state": "configured"
       },
       {
@@ -96,7 +96,7 @@
         "label": "Redact sensitive values",
         "description": "Mask protected values before downstream use.",
         "operator": "privacy_filter",
-        "version": "2.3",
+        "version": "2.4",
         "state": "configured"
       },
       {
@@ -104,7 +104,7 @@
         "label": "Score quality",
         "description": "Evaluate completeness and validity.",
         "operator": "quality_gate",
-        "version": "2.0",
+        "version": "2.1",
         "state": "configured"
       },
       {
@@ -112,7 +112,7 @@
         "label": "Extract signals",
         "description": "Map clean records into structured labels.",
         "operator": "signal_extract",
-        "version": "3.0",
+        "version": "3.1",
         "state": "configured"
       },
       {
@@ -120,7 +120,7 @@
         "label": "Route review",
         "description": "Send uncertain decisions to human review.",
         "operator": "review_route",
-        "version": "1.2",
+        "version": "1.3",
         "state": "configured"
       }
     ]
@@ -129,14 +129,13 @@
     {
       "id": "run_2026-08-29_0914",
       "recipe_version": 12,
-      "started_at": "2026-08-29T09:14:00+00:00",
+      "started_at": "2026-08-29T09:14:00Z",
       "duration_seconds": 138,
       "record_count": 3842,
       "ready_count": 1044,
       "review_count": 42,
       "state": "succeeded",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     },
     {
       "id": "run_2026_08_29_0914",
@@ -147,8 +146,7 @@
       "ready_count": 1044,
       "review_count": 42,
       "state": "succeeded",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     },
     {
       "id": "run_2026_08_28_0877",
@@ -159,8 +157,7 @@
       "ready_count": 1025,
       "review_count": 45,
       "state": "succeeded",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     },
     {
       "id": "run_2026_08_27_0840",
@@ -171,8 +168,7 @@
       "ready_count": 1006,
       "review_count": 48,
       "state": "succeeded",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     },
     {
       "id": "run_2026_08_26_0803",
@@ -183,8 +179,7 @@
       "ready_count": 987,
       "review_count": 51,
       "state": "succeeded",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     },
     {
       "id": "run_2026_08_25_0766",
@@ -195,8 +190,7 @@
       "ready_count": 968,
       "review_count": 54,
       "state": "succeeded",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     },
     {
       "id": "run_2026_08_24_0729",
@@ -207,8 +201,7 @@
       "ready_count": 949,
       "review_count": 57,
       "state": "warning",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     },
     {
       "id": "run_2026_08_23_0692",
@@ -219,45 +212,52 @@
       "ready_count": 930,
       "review_count": 60,
       "state": "succeeded",
-      "attempt": 1,
-      "failure_reason": null
+      "attempt": 1
     }
   ],
   "run_events": [
     {
       "run_id": "run_2026-08-29_0914",
       "event_type": "COMPLETE",
-      "event_time": "2026-08-29T09:14:00+00:00",
-      "job": "workflow-signals-v12",
-      "message": null
+      "event_time": "2026-08-29T09:14:00Z",
+      "job": "workflow-signals-v12"
     }
   ],
   "outputs": [
-    {
-      "id": "out_ready_parquet",
-      "name": "Ready records",
-      "format": "parquet",
-      "record_count": 1044,
-      "created_at": "2026-08-29T09:14:00+00:00",
-      "size": "1.8 MB",
-      "state": "ready"
-    },
     {
       "id": "out_ready_jsonl",
       "name": "Ready records",
       "format": "jsonl",
       "record_count": 1044,
-      "created_at": "2026-08-29T09:14:00+00:00",
-      "size": "2.6 MB",
+      "created_at": "2026-08-29T09:14:00Z",
+      "size": "898 KB",
+      "state": "ready"
+    },
+    {
+      "id": "out_ready_csv",
+      "name": "Ready records",
+      "format": "csv",
+      "record_count": 1044,
+      "created_at": "2026-08-29T09:14:00Z",
+      "size": "127 KB",
+      "state": "ready"
+    },
+    {
+      "id": "out_ready_parquet",
+      "name": "Ready records",
+      "format": "parquet",
+      "record_count": 1044,
+      "created_at": "2026-08-29T09:14:00Z",
+      "size": "130 KB",
       "state": "ready"
     },
     {
       "id": "out_decisions_jsonl",
       "name": "Decision lineage",
       "format": "jsonl",
-      "record_count": 1086,
-      "created_at": "2026-08-29T09:14:00+00:00",
-      "size": "412 KB",
+      "record_count": 3611,
+      "created_at": "2026-08-29T09:14:00Z",
+      "size": "907 KB",
       "state": "ready"
     }
   ],
@@ -436,14 +436,14 @@
       "id": "evt_00728",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-10T23:32:00+00…",
         "state": "in_progress",
+        "ts": "2026-08-10T23:32:00Z",
         "type": "agent_steer"
       },
       "after_fields": {
-        "timestamp": "2026-08-10T23:32:00…",
+        "signal": "agent_steer",
         "status": "in_progress",
-        "signal": "agent_steer"
+        "timestamp": "2026-08-10T23:32:00Z"
       },
       "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
       "extracted_signal": "Agent steer: reuse the repository pattern",
@@ -452,65 +452,9 @@
       "quality_score": 0.98,
       "decision": "review",
       "reason": "Developer feedback corrected the execution approach.",
-      "occurred_at": "2026-08-10T23:32:00+00:00",
+      "occurred_at": "2026-08-10T23:32:00Z",
       "privacy": "approved derived record",
       "evidence_count": 1,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01344",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-19T02:36:00+00…",
-        "state": "open",
-        "type": "agent_steer"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-19T02:36:00…",
-        "status": "open",
-        "signal": "agent_steer"
-      },
-      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
-      "extracted_signal": "Agent steer: reuse the repository pattern",
-      "signal_type": "agent_steer",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "Developer feedback corrected the execution approach.",
-      "occurred_at": "2026-08-19T02:36:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01744",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-24T09:16:00+00…",
-        "state": "closed",
-        "type": "agent_steer"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-24T09:16:00…",
-        "status": "closed",
-        "signal": "agent_steer"
-      },
-      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
-      "extracted_signal": "Agent steer: reuse the repository pattern",
-      "signal_type": "agent_steer",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "Developer feedback corrected the execution approach.",
-      "occurred_at": "2026-08-24T09:16:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
       "metadata": {
         "batch": "batch_2026_08_24_01",
         "policy": "local-first"
@@ -518,100 +462,156 @@
     },
     {
       "id": "evt_00744",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-11T04:36:00+00…",
-        "state": "open",
-        "type": "agent_steer"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-11T04:36:00…",
-        "status": "open",
-        "signal": "agent_steer"
-      },
-      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
-      "extracted_signal": "Agent steer: reuse the repository pattern",
-      "signal_type": "agent_steer",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "Developer feedback corrected the execution approach.",
-      "occurred_at": "2026-08-11T04:36:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01544",
-      "batch_id": "batch_2026_08_25_01",
-      "before_fields": {
-        "ts": "2026-08-21T17:56:00+00…",
-        "state": "in_progress",
-        "type": "agent_steer"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-21T17:56:00…",
-        "status": "in_progress",
-        "signal": "agent_steer"
-      },
-      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
-      "extracted_signal": "Agent steer: reuse the repository pattern",
-      "signal_type": "agent_steer",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "Developer feedback corrected the execution approach.",
-      "occurred_at": "2026-08-21T17:56:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_25_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_00699",
       "batch_id": "batch_2026_08_26_01",
       "before_fields": {
-        "ts": "2026-08-10T14:21:00+00…",
         "state": "open",
-        "type": "context_repetition"
+        "ts": "2026-08-11T04:36:00Z",
+        "type": "agent_steer"
       },
       "after_fields": {
-        "timestamp": "2026-08-10T14:21:00…",
+        "signal": "agent_steer",
         "status": "open",
-        "signal": "context_repetition"
+        "timestamp": "2026-08-11T04:36:00Z"
       },
-      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
-      "extracted_signal": "Repeated context setup",
-      "signal_type": "context_repetition",
-      "confidence": 0.62,
-      "quality_score": 1.0,
-      "decision": "review",
-      "reason": "The same task context was reconstructed in multiple sessions.",
-      "occurred_at": "2026-08-10T14:21:00+00:00",
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-11T04:36:00Z",
       "privacy": "approved derived record",
-      "evidence_count": 1,
+      "evidence_count": 7,
       "metadata": {
         "batch": "batch_2026_08_26_01",
         "policy": "local-first"
       }
     },
     {
-      "id": "evt_01259",
+      "id": "evt_01344",
+      "batch_id": "batch_2026_08_27_01",
+      "before_fields": {
+        "state": "open",
+        "ts": "2026-08-19T02:36:00Z",
+        "type": "agent_steer"
+      },
+      "after_fields": {
+        "signal": "agent_steer",
+        "status": "open",
+        "timestamp": "2026-08-19T02:36:00Z"
+      },
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-19T02:36:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_27_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01544",
+      "batch_id": "batch_2026_08_27_01",
+      "before_fields": {
+        "state": "in_progress",
+        "ts": "2026-08-21T17:56:00Z",
+        "type": "agent_steer"
+      },
+      "after_fields": {
+        "signal": "agent_steer",
+        "status": "in_progress",
+        "timestamp": "2026-08-21T17:56:00Z"
+      },
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-21T17:56:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_27_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01144",
+      "batch_id": "batch_2026_08_28_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-16T11:16:00Z",
+        "type": "agent_steer"
+      },
+      "after_fields": {
+        "signal": "agent_steer",
+        "status": "closed",
+        "timestamp": "2026-08-16T11:16:00Z"
+      },
+      "raw_event": "Developer steered the coding agent away from a new abstraction and toward the repository adapter pattern.",
+      "extracted_signal": "Agent steer: reuse the repository pattern",
+      "signal_type": "agent_steer",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "Developer feedback corrected the execution approach.",
+      "occurred_at": "2026-08-16T11:16:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_28_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00707",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-17T23:41:00+00…",
         "state": "in_progress",
+        "ts": "2026-08-10T16:53:00Z",
         "type": "context_repetition"
       },
       "after_fields": {
-        "timestamp": "2026-08-17T23:41:00…",
+        "signal": "context_repetition",
         "status": "in_progress",
-        "signal": "context_repetition"
+        "timestamp": "2026-08-10T16:53:00Z"
+      },
+      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
+      "confidence": 0.62,
+      "quality_score": 0.86,
+      "decision": "review",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-10T16:53:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 1,
+      "metadata": {
+        "batch": "batch_2026_08_24_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01459",
+      "batch_id": "batch_2026_08_24_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-20T15:01:00Z",
+        "type": "context_repetition"
+      },
+      "after_fields": {
+        "signal": "context_repetition",
+        "status": "closed",
+        "timestamp": "2026-08-20T15:01:00Z"
       },
       "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
       "extracted_signal": "Repeated context setup",
@@ -620,7 +620,7 @@
       "quality_score": 0.9,
       "decision": "accepted",
       "reason": "The same task context was reconstructed in multiple sessions.",
-      "occurred_at": "2026-08-17T23:41:00+00:00",
+      "occurred_at": "2026-08-20T15:01:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -630,137 +630,25 @@
     },
     {
       "id": "evt_01059",
-      "batch_id": "batch_2026_08_28_01",
-      "before_fields": {
-        "ts": "2026-08-15T08:21:00+00…",
-        "state": "open",
-        "type": "context_repetition"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-15T08:21:00…",
-        "status": "open",
-        "signal": "context_repetition"
-      },
-      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
-      "extracted_signal": "Repeated context setup",
-      "signal_type": "context_repetition",
-      "confidence": 0.95,
-      "quality_score": 0.9,
-      "decision": "accepted",
-      "reason": "The same task context was reconstructed in multiple sessions.",
-      "occurred_at": "2026-08-15T08:21:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_28_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01459",
-      "batch_id": "batch_2026_08_29_01",
-      "before_fields": {
-        "ts": "2026-08-20T15:01:00+00…",
-        "state": "closed",
-        "type": "context_repetition"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-20T15:01:00…",
-        "status": "closed",
-        "signal": "context_repetition"
-      },
-      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
-      "extracted_signal": "Repeated context setup",
-      "signal_type": "context_repetition",
-      "confidence": 0.95,
-      "quality_score": 0.9,
-      "decision": "accepted",
-      "reason": "The same task context was reconstructed in multiple sessions.",
-      "occurred_at": "2026-08-20T15:01:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_29_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01659",
-      "batch_id": "batch_2026_08_29_01",
-      "before_fields": {
-        "ts": "2026-08-23T06:21:00+00…",
-        "state": "open",
-        "type": "context_repetition"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-23T06:21:00…",
-        "status": "open",
-        "signal": "context_repetition"
-      },
-      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
-      "extracted_signal": "Repeated context setup",
-      "signal_type": "context_repetition",
-      "confidence": 0.95,
-      "quality_score": 0.9,
-      "decision": "accepted",
-      "reason": "The same task context was reconstructed in multiple sessions.",
-      "occurred_at": "2026-08-23T06:21:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_29_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_00727",
-      "batch_id": "batch_2026_08_26_01",
-      "before_fields": {
-        "ts": "2026-08-10T23:13:00+00…",
-        "state": "closed",
-        "type": "coordination_overhead"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-10T23:13:00…",
-        "status": "closed",
-        "signal": "coordination_overhead"
-      },
-      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
-      "extracted_signal": "Coordination overhead: external dependency",
-      "signal_type": "coordination_overhead",
-      "confidence": 0.62,
-      "quality_score": 1.0,
-      "decision": "review",
-      "reason": "A task dependency created a measurable coordination delay.",
-      "occurred_at": "2026-08-10T23:13:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 1,
-      "metadata": {
-        "batch": "batch_2026_08_26_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_00759",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-11T09:21:00+00…",
         "state": "open",
-        "type": "coordination_overhead"
+        "ts": "2026-08-15T08:21:00Z",
+        "type": "context_repetition"
       },
       "after_fields": {
-        "timestamp": "2026-08-11T09:21:00…",
+        "signal": "context_repetition",
         "status": "open",
-        "signal": "coordination_overhead"
+        "timestamp": "2026-08-15T08:21:00Z"
       },
-      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
-      "extracted_signal": "Coordination overhead: external dependency",
-      "signal_type": "coordination_overhead",
+      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
       "confidence": 0.95,
       "quality_score": 0.9,
       "decision": "accepted",
-      "reason": "A task dependency created a measurable coordination delay.",
-      "occurred_at": "2026-08-11T09:21:00+00:00",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-15T08:21:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -769,17 +657,101 @@
       }
     },
     {
-      "id": "evt_01359",
+      "id": "evt_01659",
+      "batch_id": "batch_2026_08_26_01",
+      "before_fields": {
+        "state": "open",
+        "ts": "2026-08-23T06:21:00Z",
+        "type": "context_repetition"
+      },
+      "after_fields": {
+        "signal": "context_repetition",
+        "status": "open",
+        "timestamp": "2026-08-23T06:21:00Z"
+      },
+      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
+      "confidence": 0.95,
+      "quality_score": 0.9,
+      "decision": "accepted",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-23T06:21:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_26_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00859",
+      "batch_id": "batch_2026_08_27_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-12T17:01:00Z",
+        "type": "context_repetition"
+      },
+      "after_fields": {
+        "signal": "context_repetition",
+        "status": "closed",
+        "timestamp": "2026-08-12T17:01:00Z"
+      },
+      "raw_event": "Re-entered the Jira requirements and acceptance criteria in another coding session for the same task.",
+      "extracted_signal": "Repeated context setup",
+      "signal_type": "context_repetition",
+      "confidence": 0.95,
+      "quality_score": 0.9,
+      "decision": "accepted",
+      "reason": "The same task context was reconstructed in multiple sessions.",
+      "occurred_at": "2026-08-12T17:01:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_27_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00719",
       "batch_id": "batch_2026_08_25_01",
       "before_fields": {
-        "ts": "2026-08-19T07:21:00+00…",
-        "state": "open",
+        "state": "in_progress",
+        "ts": "2026-08-10T20:41:00Z",
         "type": "coordination_overhead"
       },
       "after_fields": {
-        "timestamp": "2026-08-19T07:21:00…",
-        "status": "open",
-        "signal": "coordination_overhead"
+        "signal": "coordination_overhead",
+        "status": "in_progress",
+        "timestamp": "2026-08-10T20:41:00Z"
+      },
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.62,
+      "quality_score": 0.98,
+      "decision": "review",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-10T20:41:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 1,
+      "metadata": {
+        "batch": "batch_2026_08_25_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00959",
+      "batch_id": "batch_2026_08_24_01",
+      "before_fields": {
+        "state": "in_progress",
+        "ts": "2026-08-14T00:41:00Z",
+        "type": "coordination_overhead"
+      },
+      "after_fields": {
+        "signal": "coordination_overhead",
+        "status": "in_progress",
+        "timestamp": "2026-08-14T00:41:00Z"
       },
       "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
       "extracted_signal": "Coordination overhead: external dependency",
@@ -788,7 +760,63 @@
       "quality_score": 0.9,
       "decision": "accepted",
       "reason": "A task dependency created a measurable coordination delay.",
-      "occurred_at": "2026-08-19T07:21:00+00:00",
+      "occurred_at": "2026-08-14T00:41:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_24_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01759",
+      "batch_id": "batch_2026_08_24_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-24T14:01:00Z",
+        "type": "coordination_overhead"
+      },
+      "after_fields": {
+        "signal": "coordination_overhead",
+        "status": "closed",
+        "timestamp": "2026-08-24T14:01:00Z"
+      },
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.95,
+      "quality_score": 0.9,
+      "decision": "accepted",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-24T14:01:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_24_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01159",
+      "batch_id": "batch_2026_08_25_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-16T16:01:00Z",
+        "type": "coordination_overhead"
+      },
+      "after_fields": {
+        "signal": "coordination_overhead",
+        "status": "closed",
+        "timestamp": "2026-08-16T16:01:00Z"
+      },
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.95,
+      "quality_score": 0.9,
+      "decision": "accepted",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-16T16:01:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -798,81 +826,53 @@
     },
     {
       "id": "evt_01559",
-      "batch_id": "batch_2026_08_27_01",
-      "before_fields": {
-        "ts": "2026-08-21T22:41:00+00…",
-        "state": "in_progress",
-        "type": "coordination_overhead"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-21T22:41:00…",
-        "status": "in_progress",
-        "signal": "coordination_overhead"
-      },
-      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
-      "extracted_signal": "Coordination overhead: external dependency",
-      "signal_type": "coordination_overhead",
-      "confidence": 0.95,
-      "quality_score": 0.9,
-      "decision": "accepted",
-      "reason": "A task dependency created a measurable coordination delay.",
-      "occurred_at": "2026-08-21T22:41:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_27_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01159",
-      "batch_id": "batch_2026_08_28_01",
-      "before_fields": {
-        "ts": "2026-08-16T16:01:00+00…",
-        "state": "closed",
-        "type": "coordination_overhead"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-16T16:01:00…",
-        "status": "closed",
-        "signal": "coordination_overhead"
-      },
-      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
-      "extracted_signal": "Coordination overhead: external dependency",
-      "signal_type": "coordination_overhead",
-      "confidence": 0.95,
-      "quality_score": 0.9,
-      "decision": "accepted",
-      "reason": "A task dependency created a measurable coordination delay.",
-      "occurred_at": "2026-08-16T16:01:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_28_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_00713",
       "batch_id": "batch_2026_08_25_01",
       "before_fields": {
-        "ts": "2026-08-10T18:47:00+00…",
         "state": "in_progress",
+        "ts": "2026-08-21T22:41:00Z",
+        "type": "coordination_overhead"
+      },
+      "after_fields": {
+        "signal": "coordination_overhead",
+        "status": "in_progress",
+        "timestamp": "2026-08-21T22:41:00Z"
+      },
+      "raw_event": "Calendar meeting moved to next week because the external dependency owner was unavailable.",
+      "extracted_signal": "Coordination overhead: external dependency",
+      "signal_type": "coordination_overhead",
+      "confidence": 0.95,
+      "quality_score": 0.9,
+      "decision": "accepted",
+      "reason": "A task dependency created a measurable coordination delay.",
+      "occurred_at": "2026-08-21T22:41:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_25_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00705",
+      "batch_id": "batch_2026_08_25_01",
+      "before_fields": {
+        "state": "open",
+        "ts": "2026-08-10T16:15:00Z",
         "type": "correction"
       },
       "after_fields": {
-        "timestamp": "2026-08-10T18:47:00…",
-        "status": "in_progress",
-        "signal": "correction"
+        "signal": "correction",
+        "status": "open",
+        "timestamp": "2026-08-10T16:15:00Z"
       },
       "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
       "extracted_signal": "Correction: preserve the API contract",
       "signal_type": "correction",
       "confidence": 0.62,
-      "quality_score": 0.92,
+      "quality_score": 0.9,
       "decision": "review",
       "reason": "An explicit stop or correction changed the agent path.",
-      "occurred_at": "2026-08-10T18:47:00+00:00",
+      "occurred_at": "2026-08-10T16:15:00Z",
       "privacy": "approved derived record",
       "evidence_count": 1,
       "metadata": {
@@ -881,17 +881,17 @@
       }
     },
     {
-      "id": "evt_01329",
+      "id": "evt_01529",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-18T21:51:00+00…",
-        "state": "open",
+        "state": "in_progress",
+        "ts": "2026-08-21T13:11:00Z",
         "type": "correction"
       },
       "after_fields": {
-        "timestamp": "2026-08-18T21:51:00…",
-        "status": "open",
-        "signal": "correction"
+        "signal": "correction",
+        "status": "in_progress",
+        "timestamp": "2026-08-21T13:11:00Z"
       },
       "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
       "extracted_signal": "Correction: preserve the API contract",
@@ -900,63 +900,7 @@
       "quality_score": 0.96,
       "decision": "accepted",
       "reason": "An explicit stop or correction changed the agent path.",
-      "occurred_at": "2026-08-18T21:51:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01689",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-23T15:51:00+00…",
-        "state": "open",
-        "type": "correction"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-23T15:51:00…",
-        "status": "open",
-        "signal": "correction"
-      },
-      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
-      "extracted_signal": "Correction: preserve the API contract",
-      "signal_type": "correction",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "An explicit stop or correction changed the agent path.",
-      "occurred_at": "2026-08-23T15:51:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_00889",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-13T02:31:00+00…",
-        "state": "closed",
-        "type": "correction"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-13T02:31:00…",
-        "status": "closed",
-        "signal": "correction"
-      },
-      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
-      "extracted_signal": "Correction: preserve the API contract",
-      "signal_type": "correction",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "An explicit stop or correction changed the agent path.",
-      "occurred_at": "2026-08-13T02:31:00+00:00",
+      "occurred_at": "2026-08-21T13:11:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -966,16 +910,16 @@
     },
     {
       "id": "evt_01289",
-      "batch_id": "batch_2026_08_24_01",
+      "batch_id": "batch_2026_08_25_01",
       "before_fields": {
-        "ts": "2026-08-18T09:11:00+00…",
         "state": "in_progress",
+        "ts": "2026-08-18T09:11:00Z",
         "type": "correction"
       },
       "after_fields": {
-        "timestamp": "2026-08-18T09:11:00…",
+        "signal": "correction",
         "status": "in_progress",
-        "signal": "correction"
+        "timestamp": "2026-08-18T09:11:00Z"
       },
       "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
       "extracted_signal": "Correction: preserve the API contract",
@@ -984,11 +928,67 @@
       "quality_score": 0.84,
       "decision": "accepted",
       "reason": "An explicit stop or correction changed the agent path.",
-      "occurred_at": "2026-08-18T09:11:00+00:00",
+      "occurred_at": "2026-08-18T09:11:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
-        "batch": "batch_2026_08_24_01",
+        "batch": "batch_2026_08_25_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01129",
+      "batch_id": "batch_2026_08_25_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-16T06:31:00Z",
+        "type": "correction"
+      },
+      "after_fields": {
+        "signal": "correction",
+        "status": "closed",
+        "timestamp": "2026-08-16T06:31:00Z"
+      },
+      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
+      "extracted_signal": "Correction: preserve the API contract",
+      "signal_type": "correction",
+      "confidence": 0.95,
+      "quality_score": 0.96,
+      "decision": "accepted",
+      "reason": "An explicit stop or correction changed the agent path.",
+      "occurred_at": "2026-08-16T06:31:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_25_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01329",
+      "batch_id": "batch_2026_08_26_01",
+      "before_fields": {
+        "state": "open",
+        "ts": "2026-08-18T21:51:00Z",
+        "type": "correction"
+      },
+      "after_fields": {
+        "signal": "correction",
+        "status": "open",
+        "timestamp": "2026-08-18T21:51:00Z"
+      },
+      "raw_event": "User stopped a running refactor after type errors appeared and said to preserve the public API contract.",
+      "extracted_signal": "Correction: preserve the API contract",
+      "signal_type": "correction",
+      "confidence": 0.95,
+      "quality_score": 0.96,
+      "decision": "accepted",
+      "reason": "An explicit stop or correction changed the agent path.",
+      "occurred_at": "2026-08-18T21:51:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_26_01",
         "policy": "local-first"
       }
     },
@@ -996,14 +996,14 @@
       "id": "evt_00734",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-11T01:26:00+00…",
         "state": "in_progress",
+        "ts": "2026-08-11T01:26:00Z",
         "type": "delivery_risk"
       },
       "after_fields": {
-        "timestamp": "2026-08-11T01:26:00…",
+        "signal": "delivery_risk",
         "status": "in_progress",
-        "signal": "delivery_risk"
+        "timestamp": "2026-08-11T01:26:00Z"
       },
       "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
       "extracted_signal": "Delivery risk: schema instability",
@@ -1012,9 +1012,37 @@
       "quality_score": 0.86,
       "decision": "review",
       "reason": "A delivery commitment changed after upstream interface churn.",
-      "occurred_at": "2026-08-11T01:26:00+00:00",
+      "occurred_at": "2026-08-11T01:26:00Z",
       "privacy": "approved derived record",
       "evidence_count": 1,
+      "metadata": {
+        "batch": "batch_2026_08_24_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00814",
+      "batch_id": "batch_2026_08_24_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-12T02:46:00Z",
+        "type": "delivery_risk"
+      },
+      "after_fields": {
+        "signal": "delivery_risk",
+        "status": "closed",
+        "timestamp": "2026-08-12T02:46:00Z"
+      },
+      "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
+      "extracted_signal": "Delivery risk: schema instability",
+      "signal_type": "delivery_risk",
+      "confidence": 0.95,
+      "quality_score": 0.9,
+      "decision": "accepted",
+      "reason": "A delivery commitment changed after upstream interface churn.",
+      "occurred_at": "2026-08-12T02:46:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
       "metadata": {
         "batch": "batch_2026_08_24_01",
         "policy": "local-first"
@@ -1024,14 +1052,14 @@
       "id": "evt_01414",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-20T00:46:00+00…",
         "state": "closed",
+        "ts": "2026-08-20T00:46:00Z",
         "type": "delivery_risk"
       },
       "after_fields": {
-        "timestamp": "2026-08-20T00:46:00…",
+        "signal": "delivery_risk",
         "status": "closed",
-        "signal": "delivery_risk"
+        "timestamp": "2026-08-20T00:46:00Z"
       },
       "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
       "extracted_signal": "Delivery risk: schema instability",
@@ -1040,7 +1068,7 @@
       "quality_score": 0.9,
       "decision": "accepted",
       "reason": "A delivery commitment changed after upstream interface churn.",
-      "occurred_at": "2026-08-20T00:46:00+00:00",
+      "occurred_at": "2026-08-20T00:46:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -1049,17 +1077,17 @@
       }
     },
     {
-      "id": "evt_01174",
+      "id": "evt_00974",
       "batch_id": "batch_2026_08_25_01",
       "before_fields": {
-        "ts": "2026-08-16T20:46:00+00…",
-        "state": "closed",
+        "state": "in_progress",
+        "ts": "2026-08-14T05:26:00Z",
         "type": "delivery_risk"
       },
       "after_fields": {
-        "timestamp": "2026-08-16T20:46:00…",
-        "status": "closed",
-        "signal": "delivery_risk"
+        "signal": "delivery_risk",
+        "status": "in_progress",
+        "timestamp": "2026-08-14T05:26:00Z"
       },
       "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
       "extracted_signal": "Delivery risk: schema instability",
@@ -1068,7 +1096,7 @@
       "quality_score": 0.96,
       "decision": "accepted",
       "reason": "A delivery commitment changed after upstream interface churn.",
-      "occurred_at": "2026-08-16T20:46:00+00:00",
+      "occurred_at": "2026-08-14T05:26:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -1077,17 +1105,17 @@
       }
     },
     {
-      "id": "evt_01614",
-      "batch_id": "batch_2026_08_26_01",
+      "id": "evt_01014",
+      "batch_id": "batch_2026_08_25_01",
       "before_fields": {
-        "ts": "2026-08-22T16:06:00+00…",
         "state": "open",
+        "ts": "2026-08-14T18:06:00Z",
         "type": "delivery_risk"
       },
       "after_fields": {
-        "timestamp": "2026-08-22T16:06:00…",
+        "signal": "delivery_risk",
         "status": "open",
-        "signal": "delivery_risk"
+        "timestamp": "2026-08-14T18:06:00Z"
       },
       "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
       "extracted_signal": "Delivery risk: schema instability",
@@ -1096,166 +1124,54 @@
       "quality_score": 0.9,
       "decision": "accepted",
       "reason": "A delivery commitment changed after upstream interface churn.",
-      "occurred_at": "2026-08-22T16:06:00+00:00",
+      "occurred_at": "2026-08-14T18:06:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
-        "batch": "batch_2026_08_26_01",
+        "batch": "batch_2026_08_25_01",
         "policy": "local-first"
       }
     },
     {
-      "id": "evt_00814",
-      "batch_id": "batch_2026_08_26_01",
-      "before_fields": {
-        "ts": "2026-08-12T02:46:00+00…",
-        "state": "closed",
-        "type": "delivery_risk"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-12T02:46:00…",
-        "status": "closed",
-        "signal": "delivery_risk"
-      },
-      "raw_event": "Email thread flags that the dataset delivery slipped after an incompatible schema revision.",
-      "extracted_signal": "Delivery risk: schema instability",
-      "signal_type": "delivery_risk",
-      "confidence": 0.95,
-      "quality_score": 0.9,
-      "decision": "accepted",
-      "reason": "A delivery commitment changed after upstream interface churn.",
-      "occurred_at": "2026-08-12T02:46:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_26_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_00716",
+      "id": "evt_00700",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-10T19:44:00+00…",
-        "state": "in_progress",
+        "state": "closed",
+        "ts": "2026-08-10T14:40:00Z",
         "type": "dependency_blocker"
       },
       "after_fields": {
-        "timestamp": "2026-08-10T19:44:00…",
-        "status": "in_progress",
-        "signal": "dependency_blocker"
+        "signal": "dependency_blocker",
+        "status": "closed",
+        "timestamp": "2026-08-10T14:40:00Z"
       },
       "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
       "extracted_signal": "Dependency blocker: upstream schema change",
       "signal_type": "dependency_blocker",
       "confidence": 0.62,
-      "quality_score": 0.86,
+      "quality_score": 1,
       "decision": "review",
       "reason": "A tracked dependency prevented the task from advancing.",
-      "occurred_at": "2026-08-10T19:44:00+00:00",
+      "occurred_at": "2026-08-10T14:40:00Z",
       "privacy": "approved derived record",
       "evidence_count": 1,
       "metadata": {
         "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01444",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-20T10:16:00+00…",
-        "state": "closed",
-        "type": "dependency_blocker"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-20T10:16:00…",
-        "status": "closed",
-        "signal": "dependency_blocker"
-      },
-      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
-      "extracted_signal": "Dependency blocker: upstream schema change",
-      "signal_type": "dependency_blocker",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "A tracked dependency prevented the task from advancing.",
-      "occurred_at": "2026-08-20T10:16:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_00844",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-12T12:16:00+00…",
-        "state": "closed",
-        "type": "dependency_blocker"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-12T12:16:00…",
-        "status": "closed",
-        "signal": "dependency_blocker"
-      },
-      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
-      "extracted_signal": "Dependency blocker: upstream schema change",
-      "signal_type": "dependency_blocker",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "A tracked dependency prevented the task from advancing.",
-      "occurred_at": "2026-08-12T12:16:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01044",
-      "batch_id": "batch_2026_08_26_01",
-      "before_fields": {
-        "ts": "2026-08-15T03:36:00+00…",
-        "state": "open",
-        "type": "dependency_blocker"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-15T03:36:00…",
-        "status": "open",
-        "signal": "dependency_blocker"
-      },
-      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
-      "extracted_signal": "Dependency blocker: upstream schema change",
-      "signal_type": "dependency_blocker",
-      "confidence": 0.95,
-      "quality_score": 0.84,
-      "decision": "accepted",
-      "reason": "A tracked dependency prevented the task from advancing.",
-      "occurred_at": "2026-08-15T03:36:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_26_01",
         "policy": "local-first"
       }
     },
     {
       "id": "evt_01244",
-      "batch_id": "batch_2026_08_29_01",
+      "batch_id": "batch_2026_08_25_01",
       "before_fields": {
-        "ts": "2026-08-17T18:56:00+00…",
         "state": "in_progress",
+        "ts": "2026-08-17T18:56:00Z",
         "type": "dependency_blocker"
       },
       "after_fields": {
-        "timestamp": "2026-08-17T18:56:00…",
+        "signal": "dependency_blocker",
         "status": "in_progress",
-        "signal": "dependency_blocker"
+        "timestamp": "2026-08-17T18:56:00Z"
       },
       "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
       "extracted_signal": "Dependency blocker: upstream schema change",
@@ -1264,35 +1180,119 @@
       "quality_score": 0.84,
       "decision": "accepted",
       "reason": "A tracked dependency prevented the task from advancing.",
-      "occurred_at": "2026-08-17T18:56:00+00:00",
+      "occurred_at": "2026-08-17T18:56:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
-        "batch": "batch_2026_08_29_01",
+        "batch": "batch_2026_08_25_01",
         "policy": "local-first"
       }
     },
     {
-      "id": "evt_00709",
+      "id": "evt_01044",
+      "batch_id": "batch_2026_08_25_01",
+      "before_fields": {
+        "state": "open",
+        "ts": "2026-08-15T03:36:00Z",
+        "type": "dependency_blocker"
+      },
+      "after_fields": {
+        "signal": "dependency_blocker",
+        "status": "open",
+        "timestamp": "2026-08-15T03:36:00Z"
+      },
+      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
+      "extracted_signal": "Dependency blocker: upstream schema change",
+      "signal_type": "dependency_blocker",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "A tracked dependency prevented the task from advancing.",
+      "occurred_at": "2026-08-15T03:36:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_25_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00844",
+      "batch_id": "batch_2026_08_26_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-12T12:16:00Z",
+        "type": "dependency_blocker"
+      },
+      "after_fields": {
+        "signal": "dependency_blocker",
+        "status": "closed",
+        "timestamp": "2026-08-12T12:16:00Z"
+      },
+      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
+      "extracted_signal": "Dependency blocker: upstream schema change",
+      "signal_type": "dependency_blocker",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "A tracked dependency prevented the task from advancing.",
+      "occurred_at": "2026-08-12T12:16:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_26_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01444",
+      "batch_id": "batch_2026_08_27_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-20T10:16:00Z",
+        "type": "dependency_blocker"
+      },
+      "after_fields": {
+        "signal": "dependency_blocker",
+        "status": "closed",
+        "timestamp": "2026-08-20T10:16:00Z"
+      },
+      "raw_event": "Jira issue moved to Blocked because an upstream schema dependency changed without a migration path.",
+      "extracted_signal": "Dependency blocker: upstream schema change",
+      "signal_type": "dependency_blocker",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "A tracked dependency prevented the task from advancing.",
+      "occurred_at": "2026-08-20T10:16:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_27_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_00733",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-10T17:31:00+00…",
         "state": "closed",
+        "ts": "2026-08-11T01:07:00Z",
         "type": "knowledge_need"
       },
       "after_fields": {
-        "timestamp": "2026-08-10T17:31:00…",
+        "signal": "knowledge_need",
         "status": "closed",
-        "signal": "knowledge_need"
+        "timestamp": "2026-08-11T01:07:00Z"
       },
       "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
       "extracted_signal": "Knowledge need: approved API guidance",
       "signal_type": "knowledge_need",
       "confidence": 0.62,
-      "quality_score": 1.0,
+      "quality_score": 0.88,
       "decision": "review",
       "reason": "A repeated implementation question maps to an approved capability.",
-      "occurred_at": "2026-08-10T17:31:00+00:00",
+      "occurred_at": "2026-08-11T01:07:00Z",
       "privacy": "approved derived record",
       "evidence_count": 1,
       "metadata": {
@@ -1301,17 +1301,17 @@
       }
     },
     {
-      "id": "evt_01029",
+      "id": "evt_00829",
       "batch_id": "batch_2026_08_24_01",
       "before_fields": {
-        "ts": "2026-08-14T22:51:00+00…",
-        "state": "open",
+        "state": "closed",
+        "ts": "2026-08-12T07:31:00Z",
         "type": "knowledge_need"
       },
       "after_fields": {
-        "timestamp": "2026-08-14T22:51:00…",
-        "status": "open",
-        "signal": "knowledge_need"
+        "signal": "knowledge_need",
+        "status": "closed",
+        "timestamp": "2026-08-12T07:31:00Z"
       },
       "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
       "extracted_signal": "Knowledge need: approved API guidance",
@@ -1320,35 +1320,7 @@
       "quality_score": 0.96,
       "decision": "accepted",
       "reason": "A repeated implementation question maps to an approved capability.",
-      "occurred_at": "2026-08-14T22:51:00+00:00",
-      "privacy": "approved derived record",
-      "evidence_count": 7,
-      "metadata": {
-        "batch": "batch_2026_08_24_01",
-        "policy": "local-first"
-      }
-    },
-    {
-      "id": "evt_01629",
-      "batch_id": "batch_2026_08_24_01",
-      "before_fields": {
-        "ts": "2026-08-22T20:51:00+00…",
-        "state": "open",
-        "type": "knowledge_need"
-      },
-      "after_fields": {
-        "timestamp": "2026-08-22T20:51:00…",
-        "status": "open",
-        "signal": "knowledge_need"
-      },
-      "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
-      "extracted_signal": "Knowledge need: approved API guidance",
-      "signal_type": "knowledge_need",
-      "confidence": 0.95,
-      "quality_score": 0.96,
-      "decision": "accepted",
-      "reason": "A repeated implementation question maps to an approved capability.",
-      "occurred_at": "2026-08-22T20:51:00+00:00",
+      "occurred_at": "2026-08-12T07:31:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -1358,16 +1330,16 @@
     },
     {
       "id": "evt_01229",
-      "batch_id": "batch_2026_08_24_01",
+      "batch_id": "batch_2026_08_25_01",
       "before_fields": {
-        "ts": "2026-08-17T14:11:00+00…",
         "state": "in_progress",
+        "ts": "2026-08-17T14:11:00Z",
         "type": "knowledge_need"
       },
       "after_fields": {
-        "timestamp": "2026-08-17T14:11:00…",
+        "signal": "knowledge_need",
         "status": "in_progress",
-        "signal": "knowledge_need"
+        "timestamp": "2026-08-17T14:11:00Z"
       },
       "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
       "extracted_signal": "Knowledge need: approved API guidance",
@@ -1376,26 +1348,26 @@
       "quality_score": 0.96,
       "decision": "accepted",
       "reason": "A repeated implementation question maps to an approved capability.",
-      "occurred_at": "2026-08-17T14:11:00+00:00",
+      "occurred_at": "2026-08-17T14:11:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
-        "batch": "batch_2026_08_24_01",
+        "batch": "batch_2026_08_25_01",
         "policy": "local-first"
       }
     },
     {
-      "id": "evt_01429",
-      "batch_id": "batch_2026_08_27_01",
+      "id": "evt_01629",
+      "batch_id": "batch_2026_08_26_01",
       "before_fields": {
-        "ts": "2026-08-20T05:31:00+00…",
-        "state": "closed",
+        "state": "open",
+        "ts": "2026-08-22T20:51:00Z",
         "type": "knowledge_need"
       },
       "after_fields": {
-        "timestamp": "2026-08-20T05:31:00…",
-        "status": "closed",
-        "signal": "knowledge_need"
+        "signal": "knowledge_need",
+        "status": "open",
+        "timestamp": "2026-08-22T20:51:00Z"
       },
       "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
       "extracted_signal": "Knowledge need: approved API guidance",
@@ -1404,7 +1376,35 @@
       "quality_score": 0.96,
       "decision": "accepted",
       "reason": "A repeated implementation question maps to an approved capability.",
-      "occurred_at": "2026-08-20T05:31:00+00:00",
+      "occurred_at": "2026-08-22T20:51:00Z",
+      "privacy": "approved derived record",
+      "evidence_count": 7,
+      "metadata": {
+        "batch": "batch_2026_08_26_01",
+        "policy": "local-first"
+      }
+    },
+    {
+      "id": "evt_01189",
+      "batch_id": "batch_2026_08_27_01",
+      "before_fields": {
+        "state": "closed",
+        "ts": "2026-08-17T01:31:00Z",
+        "type": "knowledge_need"
+      },
+      "after_fields": {
+        "signal": "knowledge_need",
+        "status": "closed",
+        "timestamp": "2026-08-17T01:31:00Z"
+      },
+      "raw_event": "Asked in Slack which approved internal API client should handle retries and tenant headers.",
+      "extracted_signal": "Knowledge need: approved API guidance",
+      "signal_type": "knowledge_need",
+      "confidence": 0.95,
+      "quality_score": 0.84,
+      "decision": "accepted",
+      "reason": "A repeated implementation question maps to an approved capability.",
+      "occurred_at": "2026-08-17T01:31:00Z",
       "privacy": "approved derived record",
       "evidence_count": 7,
       "metadata": {
@@ -1413,30 +1413,30 @@
       }
     },
     {
-      "id": "evt_00722",
-      "batch_id": "batch_2026_08_24_01",
+      "id": "evt_00714",
+      "batch_id": "batch_2026_08_26_01",
       "before_fields": {
-        "ts": "2026-08-10T21:38:00+00…",
-        "state": "in_progress",
+        "state": "open",
+        "ts": "2026-08-10T19:06:00Z",
         "type": "verification_gap"
       },
       "after_fields": {
-        "timestamp": "2026-08-10T21:38:00…",
-        "status": "in_progress",
-        "signal": "verification_gap"
+        "signal": "verification_gap",
+        "status": "open",
+        "timestamp": "2026-08-10T19:06:00Z"
       },
       "raw_event": "PR review requested missing regression tests for null tenant IDs and error handling before merge.",
       "extracted_signal": "Verification gap: missing regression tests",
       "signal_type": "verification_gap",
       "confidence": 0.62,
-      "quality_score": 0.92,
+      "quality_score": 0.9,
       "decision": "review",
       "reason": "Review evidence identified a missing verification step.",
-      "occurred_at": "2026-08-10T21:38:00+00:00",
+      "occurred_at": "2026-08-10T19:06:00Z",
       "privacy": "approved derived record",
       "evidence_count": 1,
       "metadata": {
-        "batch": "batch_2026_08_24_01",
+        "batch": "batch_2026_08_26_01",
         "policy": "local-first"
       }
     }
@@ -1451,62 +1451,62 @@
     "version": "3",
     "policy": "local-first redaction",
     "threshold": 0.78,
-    "code_version": "demo-a7c9f2b",
-    "input_snapshot": "quality_2026-08-29_0914",
-    "output_snapshot": "signals_2026-08-29_0914",
+    "code_version": "go-engine-v1",
+    "input_snapshot": "quality_run_2026-08-29_0914",
+    "output_snapshot": "signals_run_2026-08-29_0914",
     "run_id": "run_2026-08-29_0914"
   },
   "signal_distribution": {
-    "knowledge_need": 136,
-    "correction": 136,
-    "verification_gap": 136,
-    "coordination_overhead": 135,
     "agent_steer": 135,
     "context_repetition": 136,
+    "coordination_overhead": 135,
+    "correction": 136,
     "delivery_risk": 136,
-    "dependency_blocker": 136
+    "dependency_blocker": 136,
+    "knowledge_need": 136,
+    "verification_gap": 136
   },
   "schema_before": [
     {
       "field": "payload",
-      "type": "object",
-      "policy": "local only"
+      "policy": "local only",
+      "type": "object"
     },
     {
       "field": "metadata",
-      "type": "object",
-      "policy": "optional"
+      "policy": "optional",
+      "type": "object"
     },
     {
       "field": "batch_id",
-      "type": "string",
-      "policy": "lineage"
+      "policy": "lineage",
+      "type": "string"
     }
   ],
   "schema_after": [
     {
       "field": "extracted_signal",
-      "type": "string",
-      "policy": "shareable"
+      "policy": "shareable",
+      "type": "string"
     },
     {
       "field": "signal_type",
-      "type": "enum",
-      "policy": "shareable"
+      "policy": "shareable",
+      "type": "enum"
     },
     {
       "field": "confidence",
-      "type": "float",
-      "policy": "shareable"
+      "policy": "shareable",
+      "type": "float"
     },
     {
       "field": "reason",
-      "type": "string",
-      "policy": "shareable"
+      "policy": "shareable",
+      "type": "string"
     }
   ],
   "copy_policy": {
-    "raw": "Raw payloads remain in the local workspace.",
-    "cloud": "Only approved records, aggregate metrics, and decision lineage are publishable."
+    "cloud": "Only approved records, aggregate metrics, and decision lineage are publishable.",
+    "raw": "Raw payloads remain in the local workspace."
   }
 }

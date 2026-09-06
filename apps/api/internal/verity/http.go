@@ -23,6 +23,7 @@ type HTTPConfig struct {
 	AllowedOrigin  map[string]struct{}
 	OpenAPIPath    string
 	RequestTimeout time.Duration
+	Airbyte        *AirbyteClient
 }
 
 type HTTPServer struct {
@@ -47,6 +48,8 @@ func NewHandler(store *Store, cfg HTTPConfig, logger *slog.Logger) http.Handler 
 	mux.HandleFunc("GET /api/v1/review-queue", server.reviewQueue)
 	mux.HandleFunc("PATCH /api/v1/reviews/{record_id}", server.updateReview)
 	mux.HandleFunc("GET /api/v1/stages/{stage_id}/preview", server.stagePreview)
+	mux.HandleFunc("POST /api/v1/integrations/airbyte/syncs", server.triggerAirbyteSync)
+	mux.HandleFunc("GET /api/v1/integrations/airbyte/jobs/{job_id}", server.airbyteJob)
 	mux.HandleFunc("OPTIONS /{path...}", server.options)
 	var handler http.Handler = mux
 	handler = server.withTimeout(handler)
@@ -60,7 +63,7 @@ func NewHandler(store *Store, cfg HTTPConfig, logger *slog.Logger) http.Handler 
 
 func (s *HTTPServer) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status": "ok", "control_plane": "go", "version": "0.2.0",
+		"status": "ok", "control_plane": "go", "data_plane": "go", "version": "0.3.0",
 	})
 }
 
@@ -187,6 +190,49 @@ func (s *HTTPServer) stagePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, PreviewResponse{StageID: stageID, Count: len(rows), Rows: rows})
+}
+
+func (s *HTTPServer) triggerAirbyteSync(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Airbyte == nil {
+		s.problem(w, r, http.StatusServiceUnavailable, "integration_not_configured", "Airbyte is not configured for this deployment")
+		return
+	}
+	var request AirbyteSyncRequest
+	if err := decodeJSON(w, r, &request, 32<<10); err != nil {
+		s.problem(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	request.ConnectionID = strings.TrimSpace(request.ConnectionID)
+	if request.ConnectionID == "" || len(request.ConnectionID) > 128 {
+		s.problem(w, r, http.StatusUnprocessableEntity, "invalid_connection", "connection_id must contain between 1 and 128 characters")
+		return
+	}
+	job, err := s.cfg.Airbyte.TriggerSync(r.Context(), request.ConnectionID)
+	if err != nil {
+		s.logger.Error("Airbyte sync failed", "request_id", requestID(r.Context()), "error", err)
+		s.problem(w, r, http.StatusBadGateway, "airbyte_unavailable", "Airbyte could not start the sync")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, job)
+}
+
+func (s *HTTPServer) airbyteJob(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Airbyte == nil {
+		s.problem(w, r, http.StatusServiceUnavailable, "integration_not_configured", "Airbyte is not configured for this deployment")
+		return
+	}
+	jobID, err := strconv.ParseInt(r.PathValue("job_id"), 10, 64)
+	if err != nil || jobID < 1 {
+		s.problem(w, r, http.StatusUnprocessableEntity, "invalid_job", "job_id must be a positive integer")
+		return
+	}
+	job, err := s.cfg.Airbyte.Job(r.Context(), jobID)
+	if err != nil {
+		s.logger.Error("Airbyte job lookup failed", "request_id", requestID(r.Context()), "error", err)
+		s.problem(w, r, http.StatusBadGateway, "airbyte_unavailable", "Airbyte could not return the job")
+		return
+	}
+	writeJSON(w, http.StatusOK, job)
 }
 
 func (s *HTTPServer) options(w http.ResponseWriter, r *http.Request) {

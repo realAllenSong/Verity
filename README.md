@@ -10,14 +10,14 @@ The repository is dataset-first. Inputs arrive as independent batches of generic
 
 - 3,842 deterministic, deliberately noisy demo records across six traceable batches
 - versioned normalization, privacy, quality, extraction, review, and publication stages
-- Parquet snapshots, JSONL decision lineage, DuckDB inspection, and Polars transforms
+- atomic JSONL stage snapshots, CSV and Parquet exports, and JSONL decision lineage
 - a persistent human review loop for uncertain decisions
 - complete Pipeline, Data, Recipes, Runs, Review, and Outputs workspaces
 - local JSON, JSONL, and CSV batch staging with checksums and idempotent retries
-- a Go control plane with strict requests, atomic local state, ETags, readiness, optional bearer auth, structured errors, request IDs, access logs, and graceful shutdown
-- a replaceable Python data-plane worker behind a process contract
+- one Go service for the control plane and in-process data plane, with strict requests, atomic local state and artifacts, ETags, readiness, optional bearer auth, structured errors, request IDs, access logs, and graceful shutdown
 - checked-in JSON Schema and OpenAPI contracts
-- optional Dagster orchestration without coupling the core engine to one scheduler
+- a native optional Temporal workflow/worker for durable execution
+- an optional Airbyte HTTP adapter for triggering and tracking managed ingestion jobs
 
 The demo funnel is reproducible: `3,842 raw -> 3,611 normalized -> 3,276 privacy-safe -> 2,914 quality-passed -> 1,086 extracted -> 42 review + 1,044 ready`.
 
@@ -25,7 +25,7 @@ This is a robust local reference product, not an enterprise GA claim. Production
 
 ## Run locally
 
-Requirements: Node.js 22+, Go 1.24+, Python 3.11+, and [uv](https://docs.astral.sh/uv/).
+Requirements: Node.js 22+ and Go 1.24+.
 
 ```bash
 make bootstrap
@@ -59,19 +59,30 @@ Or start both services with Docker:
 docker compose up --build
 ```
 
+The default deployment remains two containers: the all-Go API/engine and the web app.
+For durable local orchestration through Temporal, add the optional overlay:
+
+```bash
+docker compose -f compose.yaml -f compose.temporal.yaml up --build
+```
+
+Temporal is not required for normal local use. To connect an existing Airbyte Cloud or
+self-managed instance, set `VERITY_AIRBYTE_BASE_URL` and `VERITY_AIRBYTE_TOKEN`; Verity
+then exposes bounded endpoints to trigger a connection sync and read its job state. See
+[integrations](docs/integrations.md).
+
 ## Repository map
 
 ```text
 apps/web                 Next.js workbench
-apps/api                 Go control plane and HTTP API
-apps/engine              Python/Polars/DuckDB data-plane worker
+apps/api                 All-Go API, pipeline engine, fixtures, and optional adapters
 packages/contracts       Language-neutral event, operator, decision, and API contracts
 sample_data/raw          Generated local JSONL inputs (ignored by Git)
-artifacts                Generated state, Parquet, and decision artifacts (ignored by Git)
+artifacts                Generated state, JSONL/CSV/Parquet, and decision artifacts (ignored by Git)
 docs                     Architecture, privacy, reuse, readiness, and visual QA
 ```
 
-The Go service owns API behavior, state, idempotency, lifecycle, and observability. The Python worker owns columnar transformation and artifact generation. Their boundary is intentionally language-neutral so the worker can later be replaced or invoked by Temporal, Dagster, or the firm's Go agent framework without redesigning the product.
+The Go service owns API behavior, state, idempotency, lifecycle, transformations, artifact generation, and observability. Local runs execute in-process. The same engine can run as a Temporal activity through `verity-worker`, without changing the frontend or public API. Airbyte remains a producer-side adapter rather than becoming Verity's core runtime.
 
 ## Design principles
 
@@ -81,4 +92,4 @@ The Go service owns API behavior, state, idempotency, lifecycle, and observabili
 - Human judgment at uncertainty: low-confidence records branch to review instead of silently entering model data.
 - Portable contracts: producers and operators depend on schemas, not a source logo, language, or scheduler.
 
-See [architecture](docs/architecture.md), [privacy boundary](docs/privacy.md), [open-source reuse](docs/oss-reuse.md), and [production readiness](docs/production-readiness.md).
+See [architecture](docs/architecture.md), [integrations](docs/integrations.md), [privacy boundary](docs/privacy.md), [open-source reuse](docs/oss-reuse.md), and [production readiness](docs/production-readiness.md).

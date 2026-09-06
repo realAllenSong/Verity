@@ -1,68 +1,99 @@
 # Architecture
 
-Verity separates a Go control plane from a replaceable data-plane engine. This is a responsibility boundary, not a partial migration.
+Verity is an all-Go data preparation service with a Next.js workbench. The default path
+is deliberately small: one Go process owns both the control plane and the deterministic
+data plane. Durable orchestration and managed ingestion are optional adapters.
 
 ```mermaid
 flowchart LR
-    A[Files, streams, applications] --> B[Go control plane]
-    B -->|stage + checksum| C[Local batch store]
-    B -->|run contract| D[Python data-plane worker]
-    D --> E0[Normalize]
+    A[Files, streams, applications] --> B[Go API and control plane]
+    X[Airbyte, optional] -->|sync output batches| B
+    B --> C[Checksummed local batch store]
+    B --> D{Orchestrator}
+    D -->|default| E[In-process Go engine]
+    D -->|optional| T[Temporal workflow]
+    T --> W[Go worker]
+    W --> E
+    E --> E0[Normalize]
     E0 --> E1[Privacy]
     E1 --> E2[Quality]
     E2 --> E3[Extract]
     E3 -->|high confidence| F[Ready snapshot]
     E3 -->|uncertain| G[Human review]
     G -->|accepted or modified| F
-    D --> H[Parquet + decision lineage]
+    E --> H[JSONL, CSV, Parquet, decision lineage]
     B --> I[Next.js workbench]
 ```
 
-## Control plane
+## Go control and data plane
 
-`apps/api` is a dependency-light Go 1.24 service. It owns:
+`apps/api` is a Go 1.24 module. It owns:
 
 - strict, bounded HTTP request handling and language-neutral OpenAPI compatibility
 - optional bearer authentication and explicit CORS allowlists
 - idempotent batch staging with content checksums
 - atomic, permission-restricted local state and review persistence
-- one-run-at-a-time concurrency control
 - START, COMPLETE, and FAIL lifecycle events
-- readiness, ETags, request IDs, structured access logs, timeouts, recovery, and graceful shutdown
-- safe invocation of the replaceable engine with bounded error output
+- deterministic normalization, privacy filtering, quality scoring, signal extraction,
+  review routing, and publication
+- atomic JSONL stage artifacts, CSV and Parquet outputs, decision lineage, and verified record counts
+- readiness, ETags, request IDs, structured logs, timeouts, recovery, and graceful shutdown
 
-The local JSON state is appropriate for a single-workspace reference product. It is intentionally isolated behind `Store`; production multi-user deployment should replace it with a transactional database and workspace/tenant scoping.
+The core has no Python, CGO, database server, or scheduler requirement. This keeps local
+and container deployment reproducible across supported Go platforms.
 
-## Data plane
+## Execution backends
 
-`apps/engine` uses Polars, DuckDB, PyArrow, and Pydantic for deterministic local processing. It reads one generic envelope, performs the recipe, writes immutable run artifacts, and returns a workspace projection. It never owns HTTP, authentication, or control-plane state.
+`VERITY_ORCHESTRATOR=local` is the default. The API calls the pipeline in-process and
+protects the workspace with a one-run-at-a-time guard.
 
-The Go service invokes it through a small command contract today. The same boundary can later target a container job, Temporal activity, Dagster asset job, or the firm's internal Go framework without changing the frontend or external API.
+`VERITY_ORCHESTRATOR=temporal` submits the same pipeline as a native Temporal Go workflow.
+`verity-worker` registers the workflow and activity, and API and worker share the artifact
+store. Temporal supplies durable workflow state, retries, and worker recovery without
+creating a second implementation of the recipe. API-restart reconciliation is deliberately
+listed as a remaining production gate rather than claimed as complete.
+
+## Ingestion adapters
+
+Generic files and staged HTTP batches remain the universal input. When Airbyte is
+configured, Verity can trigger a preconfigured Airbyte connection and inspect job status.
+Airbyte still owns credentials, extraction, incremental cursors, and source-specific
+schema discovery. Its destination should emit Verity's generic record envelope into the
+approved staging location or API.
 
 ## Contracts
 
-`packages/contracts/schemas/data-record.schema.json` is deliberately small. Every record belongs to a dataset and batch, carries an opaque `payload`, and may include optional `metadata`. Origin is never required.
+`packages/contracts/schemas/data-record.schema.json` is deliberately small. Every record
+belongs to a dataset and batch, carries an opaque `payload`, and may include optional
+`metadata`. Origin is never required.
 
-Operators follow `operator.schema.json`: named inputs and outputs, semantic version, configuration, and execution class. Row-level decisions follow `decision-record.schema.json`, so filtering, classification, privacy rejection, model scoring, and human overrides share one audit format.
+Operators follow `operator.schema.json`: named inputs and outputs, semantic version,
+configuration, and execution class. Row-level decisions follow
+`decision-record.schema.json`, so filtering, classification, privacy rejection, model
+scoring, and human overrides share one audit format.
 
-`packages/contracts/openapi.json` is the control-plane boundary. The frontend and future service implementations depend on that contract rather than Go or Python internals.
+`packages/contracts/openapi.json` is the API boundary. The frontend and future service
+implementations depend on that contract rather than internal Go packages.
 
 ## Artifacts and state
 
 Each successful run writes beneath `artifacts/<run_id>/`:
 
-- one compressed Parquet snapshot per stage
+- one atomic JSONL snapshot per pipeline stage
+- `curated.csv` for direct analysis and portable handoff
+- `curated.parquet` as a typed, columnar contract for ML and analytical consumers
 - `decisions.jsonl` for machine and policy decisions
 - `review-overrides.jsonl` for human actions
 - `workspace.json` for the safe UI projection
 
-Staged batches live under `artifacts/staged/`; durable local control state lives under `artifacts/control/`. Runtime runs do not modify the checked-in demo fixture.
+Staged batches live under `artifacts/staged/`; durable local control state lives under
+`artifacts/control/`. Runtime runs do not modify the checked-in demo fixture.
 
 ## Next production increments
 
-1. Add connector adapters with supported OAuth/enterprise consent instead of scraping credential files.
-2. Replace local JSON control state with a transactional store and tenant/workspace isolation.
+1. Connect one approved Airbyte destination to the generic batch envelope end to end.
+2. Replace local JSON control state with a transactional store and tenant isolation.
 3. Add SSO, RBAC/ABAC, managed secrets, audit export, retention, and deletion enforcement.
-4. Add durable distributed execution and recovery through a production orchestrator.
-5. Add offline evaluation, drift checks, and recommendation-model adapters.
+4. Add OpenLineage transport plus metrics, traces, and operational alerts.
+5. Add an optional Arrow streaming adapter when zero-copy interchange is required at scale.
 6. Run load, chaos, threat-model, privacy, and compliance acceptance tests.
