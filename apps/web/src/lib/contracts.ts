@@ -1,5 +1,32 @@
 export type Decision = "accepted" | "rejected" | "modified" | "review";
 export type PageName = "pipeline" | "data" | "recipes" | "runs" | "review" | "outputs";
+export type LifecycleState = "created" | "uploading" | "profiling" | "queued" | "running" | "needs_input" | "succeeded" | "failed" | "canceled";
+
+export interface ImportSummary {
+  import_id: string;
+  upload_id: string;
+  upload_url: string;
+  dataset_id: string;
+  filename: string;
+  media_type?: string;
+  size_bytes: number;
+  offset: number;
+  format?: string;
+  state: LifecycleState;
+  job_id?: string;
+  error?: string;
+}
+
+export interface JobSummary {
+  job_id: string;
+  import_id: string;
+  run_id?: string;
+  output_id?: string;
+  state: LifecycleState;
+  status_url: string;
+  events_url: string;
+  error?: string;
+}
 
 export interface DatasetSummary {
   id: string;

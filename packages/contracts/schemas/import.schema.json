@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verity.local/schemas/import.schema.json",
+  "title": "Import",
+  "type": "object",
+  "required": ["import_id", "upload_id", "filename", "size_bytes", "offset", "state"],
+  "properties": {
+    "import_id": {"type": "string", "minLength": 1},
+    "upload_id": {"type": "string", "minLength": 1},
+    "filename": {"type": "string", "minLength": 1},
+    "size_bytes": {"type": "integer", "minimum": 1},
+    "offset": {"type": "integer", "minimum": 0},
+    "format": {"enum": ["csv", "tsv", "json", "jsonl", "parquet", "csv.gz", "tsv.gz", "json.gz", "jsonl.gz"]},
+    "state": {"enum": ["created", "uploading", "profiling", "queued", "running", "needs_input", "succeeded", "failed", "canceled"]},
+    "job_id": {"type": "string"}
+  },
+  "additionalProperties": false
+}

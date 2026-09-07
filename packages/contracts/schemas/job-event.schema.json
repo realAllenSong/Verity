@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verity.local/schemas/job-event.schema.json",
+  "title": "JobEvent",
+  "type": "object",
+  "required": ["job_id", "sequence", "event_type", "timestamp"],
+  "properties": {
+    "job_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "event_type": {"enum": ["upload_progress", "profile_ready", "job_queued", "stage_started", "stage_committed", "review_required", "output_ready", "job_failed", "job_canceled"]},
+    "stage_id": {"type": "string"},
+    "completed_records": {"type": "integer", "minimum": 0},
+    "total_records": {"type": "integer", "minimum": 0},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "message": {"type": "string"}
+  },
+  "additionalProperties": false
+}

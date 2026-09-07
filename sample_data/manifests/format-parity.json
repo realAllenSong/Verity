@@ -1,0 +1,25 @@
+{
+  "seed": 20260906,
+  "noise_profile": "mixed",
+  "record_count": 10000,
+  "fixtures": [
+    {
+      "path": "sample_data/examples/noisy-workflow-events.csv",
+      "format": "csv",
+      "bytes": 1961938,
+      "sha256": "a1753296b0bf3cefbb1ba1983e2aac958e576663d4db07fdbf64a11914e75c2d"
+    },
+    {
+      "path": "sample_data/examples/noisy-workflow-events.jsonl",
+      "format": "jsonl",
+      "bytes": 3751571,
+      "sha256": "2a938899a6bf89a38c638d68b73a85d5da6daa7f986a998b00964d24cc5ef1f1"
+    },
+    {
+      "path": "sample_data/examples/noisy-workflow-events.parquet",
+      "format": "parquet",
+      "bytes": 1985228,
+      "sha256": "2e0b6e65f00f4aada95abc6ba42945adaa2b028014253a33a4f5178845a8a5a7"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -43,12 +44,20 @@ func NewHandler(store *Store, cfg HTTPConfig, logger *slog.Logger) http.Handler 
 	mux.HandleFunc("GET /ready", server.ready)
 	mux.HandleFunc("GET /openapi.json", server.openAPI)
 	mux.HandleFunc("GET /api/v1/workspace", server.workspace)
+	mux.HandleFunc("POST /api/v1/imports", server.createImport)
+	mux.HandleFunc("HEAD /api/v1/uploads/{upload_id}", server.uploadOffset)
+	mux.HandleFunc("PATCH /api/v1/uploads/{upload_id}", server.appendUpload)
+	mux.HandleFunc("POST /api/v1/imports/{import_id}/complete", server.completeImport)
+	mux.HandleFunc("GET /api/v1/jobs/{job_id}", server.job)
+	mux.HandleFunc("GET /api/v1/jobs/{job_id}/events", server.jobEvents)
 	mux.HandleFunc("POST /api/v1/runs", server.run)
 	mux.HandleFunc("POST /api/v1/datasets/{dataset_id}/batches", server.stageBatch)
 	mux.HandleFunc("GET /api/v1/review-queue", server.reviewQueue)
 	mux.HandleFunc("PATCH /api/v1/reviews/{record_id}", server.updateReview)
 	mux.HandleFunc("GET /api/v1/stages/{stage_id}/preview", server.stagePreview)
+	mux.HandleFunc("GET /api/v1/stages/{stage_id}/records", server.stageRecords)
 	mux.HandleFunc("GET /api/v1/stages/{stage_id}/comparison", server.stageComparison)
+	mux.HandleFunc("GET /api/v1/outputs/{output_id}", server.downloadOutput)
 	mux.HandleFunc("POST /api/v1/integrations/airbyte/syncs", server.triggerAirbyteSync)
 	mux.HandleFunc("GET /api/v1/integrations/airbyte/jobs/{job_id}", server.airbyteJob)
 	mux.HandleFunc("OPTIONS /{path...}", server.options)
@@ -60,6 +69,114 @@ func NewHandler(store *Store, cfg HTTPConfig, logger *slog.Logger) http.Handler 
 	handler = server.withAccessLog(handler)
 	handler = server.withRequestID(handler)
 	return handler
+}
+
+func (s *HTTPServer) createImport(w http.ResponseWriter, r *http.Request) {
+	var request ImportCreate
+	if err := decodeJSON(w, r, &request, 64<<10); err != nil {
+		s.problem(w, r, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	created, _, err := s.store.CreateImport(request, r.Header.Get("Idempotency-Key"))
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrNotFound):
+			s.problem(w, r, http.StatusNotFound, "dataset_not_found", "Dataset not found")
+		case errors.Is(err, ErrUploadTooLarge):
+			s.problem(w, r, http.StatusRequestEntityTooLarge, "upload_too_large", err.Error())
+		default:
+			s.problem(w, r, http.StatusUnprocessableEntity, "invalid_import", err.Error())
+		}
+		return
+	}
+	w.Header().Set("Location", created.UploadURL)
+	writeJSON(w, http.StatusAccepted, created)
+}
+
+func (s *HTTPServer) uploadOffset(w http.ResponseWriter, r *http.Request) {
+	item, ok := s.store.ImportByUpload(r.PathValue("upload_id"))
+	if !ok {
+		s.problem(w, r, http.StatusNotFound, "upload_not_found", "Upload not found")
+		return
+	}
+	w.Header().Set("Upload-Offset", strconv.FormatInt(item.Offset, 10))
+	w.Header().Set("Upload-Length", strconv.FormatInt(item.SizeBytes, 10))
+	w.Header().Set("Upload-State", string(item.State))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *HTTPServer) appendUpload(w http.ResponseWriter, r *http.Request) {
+	offset, err := strconv.ParseInt(strings.TrimSpace(r.Header.Get("Upload-Offset")), 10, 64)
+	if err != nil || offset < 0 {
+		s.problem(w, r, http.StatusBadRequest, "invalid_upload_offset", "Upload-Offset must be a non-negative integer")
+		return
+	}
+	next, err := s.store.AppendUpload(r.PathValue("upload_id"), offset, r.Body, r.ContentLength)
+	if err != nil {
+		w.Header().Set("Upload-Offset", strconv.FormatInt(next, 10))
+		switch {
+		case errors.Is(err, ErrNotFound):
+			s.problem(w, r, http.StatusNotFound, "upload_not_found", "Upload not found")
+		case errors.Is(err, ErrUploadOffset), errors.Is(err, ErrConflict):
+			s.problem(w, r, http.StatusConflict, "upload_offset_conflict", "Resume from the acknowledged Upload-Offset")
+		case errors.Is(err, ErrUploadTooLarge):
+			s.problem(w, r, http.StatusRequestEntityTooLarge, "upload_too_large", err.Error())
+		default:
+			s.problem(w, r, http.StatusInternalServerError, "upload_failed", "The upload chunk could not be committed")
+		}
+		return
+	}
+	w.Header().Set("Upload-Offset", strconv.FormatInt(next, 10))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *HTTPServer) completeImport(w http.ResponseWriter, r *http.Request) {
+	job, _, err := s.store.CompleteImport(r.PathValue("import_id"), r.Header.Get("Idempotency-Key"))
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrNotFound):
+			s.problem(w, r, http.StatusNotFound, "import_not_found", "Import not found")
+		case errors.Is(err, ErrUploadIncomplete), errors.Is(err, ErrConflict):
+			s.problem(w, r, http.StatusConflict, "upload_incomplete", "Upload must be complete before processing starts")
+		default:
+			s.problem(w, r, http.StatusUnprocessableEntity, "import_not_ready", err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusAccepted, job)
+}
+
+func (s *HTTPServer) job(w http.ResponseWriter, r *http.Request) {
+	job, ok := s.store.Job(r.PathValue("job_id"))
+	if !ok {
+		s.problem(w, r, http.StatusNotFound, "job_not_found", "Job not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, job)
+}
+
+func (s *HTTPServer) jobEvents(w http.ResponseWriter, r *http.Request) {
+	after := uint64(0)
+	if value := strings.TrimSpace(r.Header.Get("Last-Event-ID")); value != "" {
+		parsed, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			s.problem(w, r, http.StatusBadRequest, "invalid_event_cursor", "Last-Event-ID must be an integer")
+			return
+		}
+		after = parsed
+	}
+	events, ok := s.store.JobEvents(r.PathValue("job_id"), after)
+	if !ok {
+		s.problem(w, r, http.StatusNotFound, "job_not_found", "Job not found")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	for _, event := range events {
+		payload, _ := json.Marshal(event)
+		_, _ = fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", event.Sequence, event.EventType, payload)
+	}
 }
 
 func (s *HTTPServer) health(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +310,44 @@ func (s *HTTPServer) stagePreview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, PreviewResponse{StageID: stageID, Count: len(rows), Rows: rows})
 }
 
+func (s *HTTPServer) stageRecords(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 200 {
+			s.problem(w, r, http.StatusUnprocessableEntity, "invalid_limit", "Limit must be between 1 and 200")
+			return
+		}
+		limit = parsed
+	}
+	page, err := s.store.StageRecords(r.Context(), r.PathValue("stage_id"), r.URL.Query().Get("cursor"), limit)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			s.problem(w, r, http.StatusNotFound, "stage_not_found", "Pipeline stage not found")
+			return
+		}
+		s.problem(w, r, http.StatusUnprocessableEntity, "invalid_stage_page", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, page)
+}
+
+func (s *HTTPServer) downloadOutput(w http.ResponseWriter, r *http.Request) {
+	path, output, err := s.store.OutputPath(r.PathValue("output_id"))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			s.problem(w, r, http.StatusNotFound, "output_not_found", "Output not found")
+			return
+		}
+		s.problem(w, r, http.StatusInternalServerError, "output_unavailable", "Output could not be opened")
+		return
+	}
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filepath.Base(path)+`"`)
+	w.Header().Set("X-Verity-Output-ID", output.ID)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, path)
+}
+
 func (s *HTTPServer) stageComparison(w http.ResponseWriter, r *http.Request) {
 	limit := 8
 	if raw := r.URL.Query().Get("limit"); raw != "" {
@@ -313,8 +468,9 @@ func (s *HTTPServer) withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Request-ID")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Request-ID, Upload-Offset, Upload-Length, Last-Event-ID")
+			w.Header().Set("Access-Control-Expose-Headers", "ETag, Location, Upload-Offset, Upload-Length, Upload-State, X-Request-ID, X-Verity-Output-ID")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PATCH, OPTIONS")
 		}
 		next.ServeHTTP(w, r)
 	})

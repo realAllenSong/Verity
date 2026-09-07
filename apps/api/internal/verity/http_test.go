@@ -258,6 +258,10 @@ func TestOpenAPIContainsEveryPublicOperation(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/health", "/ready", "/api/v1/workspace", "/api/v1/runs",
+		"/api/v1/imports", "/api/v1/uploads/{upload_id}",
+		"/api/v1/imports/{import_id}/complete", "/api/v1/jobs/{job_id}",
+		"/api/v1/jobs/{job_id}/events", "/api/v1/stages/{stage_id}/records",
+		"/api/v1/outputs/{output_id}",
 		"/api/v1/datasets/{dataset_id}/batches", "/api/v1/review-queue",
 		"/api/v1/reviews/{record_id}", "/api/v1/stages/{stage_id}/preview",
 		"/api/v1/stages/{stage_id}/comparison",

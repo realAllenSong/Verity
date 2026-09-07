@@ -1,54 +1,26 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
-  ArchiveTrayIcon,
   CaretDownIcon,
   CheckCircleIcon,
-  DatabaseIcon,
-  ExportIcon,
-  FileTextIcon,
-  LockKeyIcon,
-  PlayIcon,
-  StackIcon,
+  ClockCounterClockwiseIcon,
+  DotsThreeIcon,
+  GearSixIcon,
+  PlugsConnectedIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { DropdownMenu } from "@radix-ui/themes";
-import type { BatchSummary, Decision, PageName, WorkspaceData } from "@/lib/contracts";
-import { AddDataDialog, type DialogName, StepDialog } from "./dialogs";
-import { DataPage, OutputsPage, PipelinePage, RecipesPage, ReviewPage, RunsPage } from "./pages";
+import type { Decision, ImportSummary, JobSummary, WorkspaceData } from "@/lib/contracts";
+import { ImportDropzone } from "./import-dropzone";
+import { JobProgress } from "./job-progress";
+import type { ActiveImport } from "./workspace-machine";
+import { screenState } from "./workspace-machine";
+import { PrivacyNote, ResultAction, ReviewDialog, WorkspaceView } from "./workspace-view";
 
-const navItems = [
-  { id: "pipeline", label: "Pipeline", icon: StackIcon },
-  { id: "data", label: "Data", icon: DatabaseIcon },
-  { id: "recipes", label: "Recipes", icon: FileTextIcon },
-  { id: "runs", label: "Runs", icon: PlayIcon },
-  { id: "review", label: "Review", icon: ArchiveTrayIcon },
-  { id: "outputs", label: "Outputs", icon: ExportIcon },
-] satisfies Array<{ id: PageName; label: string; icon: typeof StackIcon }>;
+const chunkBytes = 8 * 1024 * 1024;
 
 type Notice = { tone: "success" | "error"; message: string } | null;
-
-function downloadManifest(workspace: WorkspaceData) {
-  const payload = JSON.stringify(
-    {
-      dataset: workspace.dataset,
-      run_id: workspace.run_id,
-      generated_at: workspace.generated_at,
-      stages: workspace.stages,
-      outputs: workspace.outputs,
-      contract: "verity.snapshot.v2",
-    },
-    null,
-    2,
-  );
-  const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${workspace.run_id}-manifest.json`;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
 
 function updateLocalDecision(workspace: WorkspaceData, recordId: string, decision: Decision) {
   const previous = workspace.records.find((item) => item.id === recordId)?.decision;
@@ -56,140 +28,183 @@ function updateLocalDecision(workspace: WorkspaceData, recordId: string, decisio
   if (previous === "review") breakdown.review = Math.max(0, breakdown.review - 1);
   if (previous === "accepted" || previous === "modified") breakdown.accepted = Math.max(0, breakdown.accepted - 1);
   if (previous === "rejected") breakdown.rejected = Math.max(0, breakdown.rejected - 1);
-  if (decision === "review") breakdown.review += 1;
   if (decision === "accepted" || decision === "modified") breakdown.accepted += 1;
   if (decision === "rejected") breakdown.rejected += 1;
   return {
     ...workspace,
     decision_breakdown: breakdown,
-    records: workspace.records.map((item) => (item.id === recordId ? { ...item, decision } : item)),
+    records: workspace.records.map((item) => item.id === recordId ? { ...item, decision } : item),
   };
 }
 
 export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceData }) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
-  const [page, setPage] = useState<PageName>("pipeline");
-  const [selectedStageId, setSelectedStageId] = useState("signals");
-  const [dialog, setDialog] = useState<DialogName>(null);
-  const [lastRun, setLastRun] = useState(() => relativeTime(initialWorkspace.generated_at));
+  const [selectedStageId, setSelectedStageId] = useState("raw");
+  const [activeImport, setActiveImport] = useState<ActiveImport>();
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
-  const [isRunning, startRun] = useTransition();
-  const stage = workspace.stages.find((item) => item.id === selectedStageId) ?? workspace.stages[4];
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const busy = activeImport?.state === "uploading" || activeImport?.state === "processing";
+
+  async function refreshWorkspace() {
+    if (!apiUrl) return;
+    const response = await fetch(`${apiUrl}/api/v1/workspace`, { cache: "no-store" });
+    if (!response.ok) throw new Error("The workspace could not be refreshed.");
+    setWorkspace(await response.json() as WorkspaceData);
+  }
+
+  async function waitForJob(job: JobSummary, current: ActiveImport) {
+    if (!apiUrl) return;
+    const deadline = Date.now() + 120_000;
+    let latest = job;
+    while (Date.now() < deadline) {
+      const response = await fetch(`${apiUrl}${job.status_url}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Processing status is unavailable.");
+      latest = await response.json() as JobSummary;
+      const state = screenState(latest);
+      setActiveImport({ ...current, uploaded: current.bytes, state, job: latest, error: latest.error });
+      if (latest.state === "succeeded") {
+        await refreshWorkspace();
+        setSelectedStageId("raw");
+        setNotice({ tone: "success", message: "Result ready. Every stage can now be inspected." });
+        return;
+      }
+      if (latest.state === "failed" || latest.state === "canceled") {
+        throw new Error(latest.error || "Processing failed. The previous result is unchanged.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    }
+    throw new Error("Processing is still running. You can safely return to this workspace later.");
+  }
+
+  async function uploadFile(file: File) {
+    if (!apiUrl) throw new Error("Start the local API before adding data.");
+    const current: ActiveImport = { filename: file.name, bytes: file.size, uploaded: 0, state: "uploading" };
+    setActiveImport(current);
+    setNotice(null);
+    const idempotency = `${file.name}:${file.size}:${file.lastModified}`;
+    const create = await fetch(`${apiUrl}/api/v1/imports`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": idempotency },
+      body: JSON.stringify({ dataset_id: workspace.dataset.id, filename: file.name, media_type: file.type, size_bytes: file.size }),
+    });
+    if (!create.ok) throw new Error(await problemDetail(create, "This file could not be accepted."));
+    const imported = await create.json() as ImportSummary;
+    let offset = imported.offset;
+    if (offset > 0 && offset < file.size) {
+      const head = await fetch(`${apiUrl}${imported.upload_url}`, { method: "HEAD" });
+      if (!head.ok) throw new Error("The resumable upload could not be inspected.");
+      offset = Number(head.headers.get("Upload-Offset") ?? offset);
+    }
+    while (offset < file.size) {
+      const end = Math.min(file.size, offset + chunkBytes);
+      const response = await fetch(`${apiUrl}${imported.upload_url}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/offset+octet-stream", "Upload-Offset": String(offset) },
+        body: file.slice(offset, end),
+      });
+      if (!response.ok) throw new Error(await problemDetail(response, "Upload stopped before the chunk was committed."));
+      offset = Number(response.headers.get("Upload-Offset") ?? end);
+      setActiveImport({ ...current, uploaded: offset });
+    }
+    setActiveImport({ ...current, uploaded: file.size, state: "processing" });
+    const complete = await fetch(`${apiUrl}/api/v1/imports/${imported.import_id}/complete`, {
+      method: "POST",
+      headers: { "Idempotency-Key": `complete:${idempotency}` },
+    });
+    if (!complete.ok) throw new Error(await problemDetail(complete, "The upload could not start processing."));
+    const job = await complete.json() as JobSummary;
+    await waitForJob(job, { ...current, uploaded: file.size, state: "processing", job });
+  }
+
+  async function addFiles(files: File[]) {
+    for (const file of files) {
+      try {
+        await uploadFile(file);
+      } catch (failure) {
+        const message = failure instanceof Error ? failure.message : "Import failed.";
+        setActiveImport((current) => current ? { ...current, state: "failed", error: message } : undefined);
+        setNotice({ tone: "error", message });
+        break;
+      }
+    }
+  }
 
   function changeDecision(recordId: string, decision: Decision) {
     const before = workspace;
     setWorkspace((current) => updateLocalDecision(current, recordId, decision));
-    setNotice({ tone: "success", message: "Decision saved locally" });
-    if (!apiUrl || decision === "review") return;
-    void (async () => {
-      try {
-        const response = await fetch(`${apiUrl}/api/v1/reviews/${recordId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ decision, note: "" }),
-        });
-        if (!response.ok) throw new Error(`review update returned ${response.status}`);
-        setWorkspace((await response.json()) as WorkspaceData);
-        setNotice({ tone: "success", message: "Review decision persisted" });
-      } catch {
-        setWorkspace(before);
-        setNotice({ tone: "error", message: "Could not save the review decision" });
-      }
-    })();
-  }
-
-  function runPipeline() {
-    startRun(async () => {
-      setNotice(null);
-      try {
-        if (apiUrl) {
-          const runResponse = await fetch(`${apiUrl}/api/v1/runs`, { method: "POST" });
-          if (!runResponse.ok) throw new Error(`run returned ${runResponse.status}`);
-          const workspaceResponse = await fetch(`${apiUrl}/api/v1/workspace`, { cache: "no-store" });
-          if (!workspaceResponse.ok) throw new Error("workspace refresh failed");
-          setWorkspace((await workspaceResponse.json()) as WorkspaceData);
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 650));
-        }
-        setLastRun("just now");
-        setNotice({ tone: "success", message: "Pipeline completed" });
-      } catch {
-        setNotice({ tone: "error", message: "Pipeline failed. No published output was changed." });
-      }
+    if (!apiUrl) return;
+    void fetch(`${apiUrl}/api/v1/reviews/${recordId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, note: "" }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error();
+      setWorkspace(await response.json() as WorkspaceData);
+    }).catch(() => {
+      setWorkspace(before);
+      setNotice({ tone: "error", message: "The review decision could not be saved." });
     });
-  }
-
-  function stageBatch(batch: BatchSummary) {
-    setWorkspace((current) => {
-      const exists = current.batches.some((item) => item.id === batch.id);
-      return {
-        ...current,
-        batches: [batch, ...current.batches.filter((item) => item.id !== batch.id)],
-        dataset: {
-          ...current.dataset,
-          batch_count: exists ? current.dataset.batch_count : current.dataset.batch_count + 1,
-          record_count: exists ? current.dataset.record_count : current.dataset.record_count + batch.record_count,
-          updated_at: batch.added_at,
-          state: "attention",
-        },
-      };
-    });
-    setNotice({ tone: "success", message: "Batch staged for the next run" });
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
+    <main className="single-workspace">
+      <header className="workspace-topbar">
         <div className="brand-lockup"><span className="brand-mark">V</span><strong>VERITY</strong></div>
-        <div className="breadcrumb"><span>Datasets</span><b>/</b><strong>{workspace.dataset.name}</strong></div>
-        <div className="topbar-actions">
+        <div className="topbar-tools">
+          <button className="workspace-switcher" type="button">{workspace.dataset.name}<CaretDownIcon /></button>
+          <span className="local-state"><i />Local</span>
           <DropdownMenu.Root>
-            <DropdownMenu.Trigger>
-              <button className="top-control" type="button"><DatabaseIcon size={16} /> {workspace.dataset.name} <CaretDownIcon size={13} /></button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content align="end"><DropdownMenu.Item>{workspace.dataset.name}</DropdownMenu.Item><DropdownMenu.Separator /><DropdownMenu.Item>Create dataset</DropdownMenu.Item></DropdownMenu.Content>
+            <DropdownMenu.Trigger><button className="icon-button" type="button" aria-label="Workspace options"><DotsThreeIcon /></button></DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end">
+              <DropdownMenu.Item><ClockCounterClockwiseIcon />Run history</DropdownMenu.Item>
+              <DropdownMenu.Item><GearSixIcon />Workflow settings</DropdownMenu.Item>
+              <DropdownMenu.Item><PlugsConnectedIcon />Automation</DropdownMenu.Item>
+            </DropdownMenu.Content>
           </DropdownMenu.Root>
-          <span className="workspace-state"><i />Local workspace</span>
-          <button className="avatar" type="button" aria-label="Profile">AK</button>
         </div>
       </header>
 
-      <aside className="left-rail">
-        <nav aria-label="Workspace navigation">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const count = item.id === "review" ? workspace.decision_breakdown.review : null;
-            return <button key={item.id} type="button" aria-label={item.label} data-active={page === item.id} onClick={() => setPage(item.id)}><Icon size={19} /><span>{item.label}</span>{count ? <small>{count}</small> : null}</button>;
-          })}
-        </nav>
-        <div className="rail-spacer" />
-        <div className="privacy-link"><LockKeyIcon /><span>Local by default</span><CheckCircleIcon weight="fill" /></div>
-      </aside>
-
-      <section className="workspace-canvas">
+      <section className="workspace-main">
         {notice ? <div className="operation-notice" data-tone={notice.tone} role="status">{notice.tone === "success" ? <CheckCircleIcon weight="fill" /> : <WarningCircleIcon weight="fill" />}{notice.message}<button type="button" aria-label="Dismiss notification" onClick={() => setNotice(null)}>×</button></div> : null}
-        {page === "pipeline" ? <PipelinePage workspace={workspace} selectedStageId={selectedStageId} onStage={setSelectedStageId} onRun={runPipeline} isRunning={isRunning} onStep={() => setDialog("step")} lastRun={lastRun} /> : null}
-        {page === "data" ? <DataPage workspace={workspace} onAdd={() => setDialog("add-data")} /> : null}
-        {page === "recipes" ? <RecipesPage workspace={workspace} /> : null}
-        {page === "runs" ? <RunsPage workspace={workspace} /> : null}
-        {page === "review" ? <ReviewPage records={workspace.records} total={workspace.decision_breakdown.review} onDecision={changeDecision} /> : null}
-        {page === "outputs" ? <OutputsPage workspace={workspace} onDownload={() => downloadManifest(workspace)} /> : null}
+        <header className="workspace-intro">
+          <div><h1>See every transformation.</h1><p>Drop in raw data. Verity prepares it and shows exactly what changed.</p></div>
+          <div className="intro-actions">
+            {workspace.decision_breakdown.review > 0 ? <button className="review-button" type="button" onClick={() => setReviewOpen(true)}>Review {workspace.decision_breakdown.review} items</button> : null}
+            <ResultAction workspace={workspace} apiUrl={apiUrl} />
+          </div>
+        </header>
+
+        <div className="ingest-row">
+          <ImportDropzone active={activeImport} disabled={busy} onFiles={(files) => void addFiles(files)} />
+          <JobProgress active={activeImport} />
+        </div>
+
+        <WorkspaceView
+          workspace={workspace}
+          selectedStageId={selectedStageId}
+          onStage={setSelectedStageId}
+          apiUrl={apiUrl}
+        />
+        <PrivacyNote workspace={workspace} />
       </section>
 
-      <StepDialog workspace={workspace} stage={stage} open={dialog === "step"} onOpenChange={(open) => setDialog(open ? "step" : null)} />
-      <AddDataDialog datasetId={workspace.dataset.id} open={dialog === "add-data"} onOpenChange={(open) => setDialog(open ? "add-data" : null)} onStaged={stageBatch} />
+      <ReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        records={workspace.records.filter((record) => record.decision === "review")}
+        total={workspace.decision_breakdown.review}
+        onDecision={changeDecision}
+      />
     </main>
   );
 }
 
-function relativeTime(value: string) {
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "unknown";
-  const elapsedMinutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
-  if (elapsedMinutes < 1) return "just now";
-  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`;
-  const hours = Math.round(elapsedMinutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+async function problemDetail(response: Response, fallback: string) {
+  try {
+    const problem = await response.json() as { detail?: string };
+    return problem.detail || fallback;
+  } catch {
+    return fallback;
+  }
 }

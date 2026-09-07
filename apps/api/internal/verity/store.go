@@ -2,6 +2,7 @@ package verity
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,10 +22,11 @@ var (
 )
 
 type StoreConfig struct {
-	RepoRoot      string
-	SeedWorkspace string
-	StatePath     string
-	ArtifactsDir  string
+	RepoRoot       string
+	SeedWorkspace  string
+	StatePath      string
+	ArtifactsDir   string
+	MaxUploadBytes int64
 }
 
 type ReviewEvent struct {
@@ -37,8 +39,12 @@ type ReviewEvent struct {
 }
 
 type persistedState struct {
-	Workspace    Workspace     `json:"workspace"`
-	ReviewEvents []ReviewEvent `json:"review_events"`
+	Workspace    Workspace                `json:"workspace"`
+	ReviewEvents []ReviewEvent            `json:"review_events"`
+	Imports      map[string]ImportSummary `json:"imports,omitempty"`
+	Jobs         map[string]JobSummary    `json:"jobs,omitempty"`
+	JobEvents    map[string][]JobEvent    `json:"job_events,omitempty"`
+	ImportKeys   map[string]string        `json:"import_keys,omitempty"`
 }
 
 type Store struct {
@@ -47,16 +53,31 @@ type Store struct {
 	engine       Engine
 	workspace    Workspace
 	reviewEvents []ReviewEvent
+	imports      map[string]ImportSummary
+	jobs         map[string]JobSummary
+	jobEvents    map[string][]JobEvent
+	importKeys   map[string]string
 	running      bool
 }
 
 func NewStore(cfg StoreConfig, engine Engine) (*Store, error) {
+	if cfg.MaxUploadBytes <= 0 {
+		cfg.MaxUploadBytes = 5 << 30
+	}
 	store := &Store{cfg: cfg, engine: engine}
 	if err := os.MkdirAll(filepath.Dir(cfg.StatePath), 0o750); err != nil {
 		return nil, fmt.Errorf("create control state directory: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Join(cfg.ArtifactsDir, "staged"), 0o750); err != nil {
 		return nil, fmt.Errorf("create staged batch directory: %w", err)
+	}
+	for _, directory := range []string{
+		filepath.Join(cfg.ArtifactsDir, "uploads", "incomplete"),
+		filepath.Join(cfg.ArtifactsDir, "uploads", "complete"),
+	} {
+		if err := os.MkdirAll(directory, 0o750); err != nil {
+			return nil, fmt.Errorf("create upload directory: %w", err)
+		}
 	}
 	if err := store.load(); err != nil {
 		return nil, err
@@ -72,6 +93,11 @@ func (s *Store) load() error {
 		}
 		s.workspace = state.Workspace
 		s.reviewEvents = state.ReviewEvents
+		s.imports = state.Imports
+		s.jobs = state.Jobs
+		s.jobEvents = state.JobEvents
+		s.importKeys = state.ImportKeys
+		s.initializeLifecycleMaps()
 		s.enrich(&s.workspace)
 		return s.validateWorkspace(s.workspace)
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -87,7 +113,23 @@ func (s *Store) load() error {
 		return err
 	}
 	s.workspace = workspace
+	s.initializeLifecycleMaps()
 	return s.persistLocked()
+}
+
+func (s *Store) initializeLifecycleMaps() {
+	if s.imports == nil {
+		s.imports = make(map[string]ImportSummary)
+	}
+	if s.jobs == nil {
+		s.jobs = make(map[string]JobSummary)
+	}
+	if s.jobEvents == nil {
+		s.jobEvents = make(map[string][]JobEvent)
+	}
+	if s.importKeys == nil {
+		s.importKeys = make(map[string]string)
+	}
 }
 
 func (s *Store) Workspace() Workspace {
@@ -262,7 +304,9 @@ func (s *Store) Run(ctx context.Context) (RunResponse, error) {
 		}
 	}
 	oldEvents := s.workspace.RunEvents
+	previousBatches := append([]BatchSummary(nil), s.workspace.Batches...)
 	s.enrich(&fresh)
+	mergeMissingBatches(&fresh, previousBatches)
 	applyReviewOverrides(&fresh, s.reviewEvents)
 	fresh.RunEvents = append([]RunEvent{{
 		RunID: runID, EventType: "COMPLETE", EventTime: finished.Format(time.RFC3339),
@@ -280,6 +324,22 @@ func (s *Store) Run(ctx context.Context) (RunResponse, error) {
 		counts[stage.ID] = stage.Count
 	}
 	return RunResponse{RunID: runID, State: "succeeded", StageCounts: counts}, nil
+}
+
+func mergeMissingBatches(workspace *Workspace, previous []BatchSummary) {
+	present := make(map[string]struct{}, len(workspace.Batches))
+	for _, batch := range workspace.Batches {
+		present[batch.ID] = struct{}{}
+	}
+	for _, batch := range previous {
+		if _, exists := present[batch.ID]; exists {
+			continue
+		}
+		workspace.Batches = append(workspace.Batches, batch)
+		workspace.Dataset.RecordCount += batch.RecordCount
+		workspace.Dataset.FieldCount = max(workspace.Dataset.FieldCount, batch.FieldCount)
+	}
+	workspace.Dataset.BatchCount = len(workspace.Batches)
 }
 
 func applyReviewOverrides(workspace *Workspace, events []ReviewEvent) {
@@ -368,8 +428,17 @@ func (s *Store) IsReady() error {
 
 func (s *Store) persistLocked() error {
 	return writeJSONAtomic(s.cfg.StatePath, persistedState{
-		Workspace: s.workspace, ReviewEvents: s.reviewEvents,
+		Workspace: s.workspace, ReviewEvents: s.reviewEvents, Imports: s.imports,
+		Jobs: s.jobs, JobEvents: s.jobEvents, ImportKeys: s.importKeys,
 	})
+}
+
+func randomID(prefix string) (string, error) {
+	buffer := make([]byte, 12)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return prefix + hex.EncodeToString(buffer), nil
 }
 
 func (s *Store) writeBatch(batch BatchSummary, records []map[string]interface{}) error {

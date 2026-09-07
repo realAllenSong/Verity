@@ -68,6 +68,53 @@
         "title": "BatchStageResponse",
         "type": "object"
       },
+      "ImportCreate": {
+        "properties": {
+          "dataset_id": {"type": "string"},
+          "filename": {"maxLength": 180, "minLength": 1, "type": "string"},
+          "media_type": {"type": "string"},
+          "size_bytes": {"minimum": 1, "type": "integer"}
+        },
+        "required": ["dataset_id", "filename", "size_bytes"],
+        "type": "object"
+      },
+      "ImportResponse": {
+        "properties": {
+          "import_id": {"type": "string"},
+          "upload_id": {"type": "string"},
+          "upload_url": {"type": "string"},
+          "state": {"enum": ["created", "uploading", "profiling", "queued", "running", "needs_input", "succeeded", "failed", "canceled"], "type": "string"},
+          "offset": {"minimum": 0, "type": "integer"},
+          "size_bytes": {"minimum": 1, "type": "integer"},
+          "format": {"type": "string"},
+          "job_id": {"type": "string"}
+        },
+        "required": ["import_id", "upload_id", "upload_url", "state", "offset", "size_bytes"],
+        "type": "object"
+      },
+      "JobResponse": {
+        "properties": {
+          "job_id": {"type": "string"},
+          "import_id": {"type": "string"},
+          "run_id": {"type": "string"},
+          "state": {"enum": ["queued", "running", "needs_input", "succeeded", "failed", "canceled"], "type": "string"},
+          "status_url": {"type": "string"},
+          "events_url": {"type": "string"},
+          "error": {"type": "string"}
+        },
+        "required": ["job_id", "import_id", "state", "status_url", "events_url"],
+        "type": "object"
+      },
+      "StagePage": {
+        "properties": {
+          "stage_id": {"type": "string"},
+          "rows": {"items": {"additionalProperties": true, "type": "object"}, "type": "array"},
+          "next_cursor": {"type": "string"},
+          "returned": {"minimum": 0, "type": "integer"}
+        },
+        "required": ["stage_id", "rows", "returned"],
+        "type": "object"
+      },
       "BatchSummary": {
         "properties": {
           "added_at": {
@@ -884,6 +931,80 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/imports": {
+      "post": {
+        "operationId": "create_import",
+        "parameters": [{"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "type": "string"}}],
+        "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ImportCreate"}}}, "required": true},
+        "responses": {"202": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ImportResponse"}}}, "description": "Resumable import created"}},
+        "summary": "Create Import"
+      }
+    },
+    "/api/v1/uploads/{upload_id}": {
+      "head": {
+        "operationId": "inspect_upload",
+        "parameters": [{"in": "path", "name": "upload_id", "required": true, "schema": {"type": "string"}}],
+        "responses": {"204": {"description": "Current upload offset", "headers": {"Upload-Offset": {"schema": {"type": "integer"}}}}},
+        "summary": "Inspect Upload Offset"
+      },
+      "patch": {
+        "operationId": "append_upload",
+        "parameters": [
+          {"in": "path", "name": "upload_id", "required": true, "schema": {"type": "string"}},
+          {"in": "header", "name": "Upload-Offset", "required": true, "schema": {"minimum": 0, "type": "integer"}}
+        ],
+        "requestBody": {"content": {"application/offset+octet-stream": {"schema": {"format": "binary", "type": "string"}}}, "required": true},
+        "responses": {"204": {"description": "Upload chunk committed"}},
+        "summary": "Append Upload Chunk"
+      }
+    },
+    "/api/v1/imports/{import_id}/complete": {
+      "post": {
+        "operationId": "complete_import",
+        "parameters": [
+          {"in": "path", "name": "import_id", "required": true, "schema": {"type": "string"}},
+          {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "type": "string"}}
+        ],
+        "responses": {"202": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/JobResponse"}}}, "description": "Automatic pipeline job created"}},
+        "summary": "Complete Import And Start Pipeline"
+      }
+    },
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_job",
+        "parameters": [{"in": "path", "name": "job_id", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/JobResponse"}}}, "description": "Job status"}},
+        "summary": "Get Job"
+      }
+    },
+    "/api/v1/jobs/{job_id}/events": {
+      "get": {
+        "operationId": "stream_job_events",
+        "parameters": [{"in": "path", "name": "job_id", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"content": {"text/event-stream": {"schema": {"type": "string"}}}, "description": "Replayable job event stream"}},
+        "summary": "Stream Job Events"
+      }
+    },
+    "/api/v1/stages/{stage_id}/records": {
+      "get": {
+        "operationId": "page_stage_records",
+        "parameters": [
+          {"in": "path", "name": "stage_id", "required": true, "schema": {"type": "string"}},
+          {"in": "query", "name": "cursor", "required": false, "schema": {"type": "string"}},
+          {"in": "query", "name": "limit", "required": false, "schema": {"default": 50, "maximum": 200, "minimum": 1, "type": "integer"}}
+        ],
+        "responses": {"200": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StagePage"}}}, "description": "Bounded page of stage records"}},
+        "summary": "Page Stage Records"
+      }
+    },
+    "/api/v1/outputs/{output_id}": {
+      "get": {
+        "operationId": "download_output",
+        "parameters": [{"in": "path", "name": "output_id", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"content": {"application/octet-stream": {"schema": {"format": "binary", "type": "string"}}}, "description": "Output artifact"}},
+        "summary": "Download Output"
+      }
+    },
     "/api/v1/datasets/{dataset_id}/batches": {
       "post": {
         "operationId": "stage_batch_api_v1_datasets__dataset_id__batches_post",
