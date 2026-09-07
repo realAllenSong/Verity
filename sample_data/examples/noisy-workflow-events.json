@@ -1,0 +1,156 @@
+[
+  {
+    "record_id": "trial_evt_001",
+    "kind": "agent_steer",
+    "occurred_at": "2026-09-05T13:12:00Z",
+    "actor": "alex.chen@example.invalid",
+    "thread_id": "codex-1842",
+    "title": "Repository migration",
+    "content": "Developer steered the coding agent to reuse the repository adapter pattern. Contact alex.chen@example.invalid and use od_demo_secret_TRIAL only in local tests.",
+    "status": "resolved",
+    "evidence_count": 4
+  },
+  {
+    "record_id": "trial_evt_002",
+    "kind": "agent_interrupt",
+    "occurred_at": "2026-09-05T13:24:00Z",
+    "actor": "alex.chen@example.invalid",
+    "thread_id": "codex-1842",
+    "title": "Public API correction",
+    "content": "Stopped a running refactor and asked the agent to preserve the public API.",
+    "status": "resolved",
+    "evidence_count": 1
+  },
+  {
+    "record_id": "trial_evt_003",
+    "kind": "review_comment",
+    "occurred_at": "2026-09-05T14:02:00Z",
+    "actor": "reviewer@example.invalid",
+    "thread_id": "pr-903",
+    "title": "Regression coverage",
+    "content": "Review found missing regression tests before merge. Call 212-555-0184 for the test bridge.",
+    "status": "open",
+    "evidence_count": 3
+  },
+  {
+    "record_id": "trial_evt_004",
+    "kind": "agent_session",
+    "occurred_at": "2026-09-05T14:31:00Z",
+    "actor": "person-042",
+    "thread_id": "jira-721",
+    "title": "Repeated task setup",
+    "content": "Re-entered the Jira requirements in another coding session. Automated footer: sent from mobile",
+    "status": "complete",
+    "evidence_count": 5
+  },
+  {
+    "record_id": "trial_evt_005",
+    "kind": "private_fragment",
+    "occurred_at": "2026-09-05T15:05:00Z",
+    "actor": "person-042",
+    "thread_id": "private-2",
+    "title": "Personal draft",
+    "content": "This fragment must remain local and contains no task context.",
+    "status": "private",
+    "sensitive_only": true,
+    "evidence_count": 4
+  },
+  {
+    "record_id": "trial_evt_006",
+    "type": "issue",
+    "timestamp": "not-a-date",
+    "owner": "person-042",
+    "ticket_id": "jira-733",
+    "message": "Blocked by an upstream schema dependency.",
+    "state": "blocked",
+    "evidence_count": 3
+  },
+  {
+    "record_id": "trial_evt_007",
+    "kind": "calendar_event",
+    "occurred_at": "2026-09-05T16:00:00Z",
+    "actor": "person-042",
+    "thread_id": "calendar-84",
+    "title": "Weekly planning",
+    "content": "Reviewed priorities and assigned owners for the next sprint.",
+    "status": "complete",
+    "evidence_count": 3
+  },
+  {
+    "record_id": "trial_evt_008",
+    "kind": "slack_message",
+    "occurred_at": "2026-09-05T16:22:00Z",
+    "actor": "person-042",
+    "thread_id": "slack-551",
+    "title": "Client library question",
+    "content": "Asked in Slack for the approved internal API client.",
+    "status": "answered",
+    "evidence_count": 4
+  },
+  {
+    "record_id": "trial_evt_008",
+    "kind": "slack_message",
+    "occurred_at": "2026-09-05T16:22:00Z",
+    "actor": "person-042",
+    "thread_id": "slack-551",
+    "title": "Duplicate replay",
+    "content": "Asked in Slack for the approved internal API client.",
+    "status": "answered",
+    "evidence_count": 4
+  },
+  {
+    "record_id": "trial_evt_009",
+    "dataset_id": "external-source",
+    "batch_id": "external-batch",
+    "ingested_at": "2026-09-05T17:00:00Z",
+    "payload": {
+      "event_type": "jira_update",
+      "created_at": "2026-09-05T16:48:00Z",
+      "author": "person-042",
+      "conversation_id": "jira-740",
+      "subject": "Schema dependency",
+      "text": "The task is blocked by an upstream schema dependency.",
+      "state": "blocked"
+    },
+    "metadata": {
+      "evidence_count": 6,
+      "origin": "portable-envelope"
+    }
+  },
+  {
+    "record_id": "trial_evt_010",
+    "event_type": "release_note",
+    "created_at": "2026-09-05T17:18:00Z",
+    "author": "person-042",
+    "conversation_id": "release-45",
+    "subject": "Delivery change",
+    "text": "Delivery slipped after an incompatible schema reached staging.",
+    "state": "mitigated",
+    "evidence_count": 4
+  },
+  {
+    "record_id": "trial_evt_011",
+    "kind": "calendar_change",
+    "occurred_at": "2026-09-05T17:42:00Z",
+    "actor": "person-042",
+    "thread_id": "calendar-91",
+    "title": "Dependency review",
+    "content": "The meeting moved because the owner was unavailable.",
+    "status": "rescheduled",
+    "evidence_count": 3
+  },
+  {
+    "record_id": "trial_evt_012",
+    "time": "2026-09-05T18:02:00Z",
+    "body": "Developer steered the coding agent to reuse the repository adapter pattern.",
+    "status": "resolved",
+    "evidence_count": 2
+  },
+  {
+    "record_id": "trial_evt_013",
+    "timestamp": null,
+    "message": "Unstructured scratch note",
+    "owner": "person-042",
+    "score": "unknown"
+  }
+]

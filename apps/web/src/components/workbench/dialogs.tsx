@@ -13,7 +13,7 @@ import {
 import { Dialog } from "@radix-ui/themes";
 import type { BatchSummary, EvidenceRecord, PipelineStage, WorkspaceData } from "@/lib/contracts";
 
-export type DialogName = "record" | "step" | "add-data" | null;
+export type DialogName = "step" | "add-data" | null;
 
 function ModalShell({ open, onOpenChange, title, description, children, width = "760px" }: {
   open: boolean;
@@ -50,6 +50,17 @@ async function parseFile(file: File): Promise<Record<string, unknown>[]> {
   const parsed = JSON.parse(text) as unknown;
   if (Array.isArray(parsed)) return parsed as Record<string, unknown>[];
   return [parsed as Record<string, unknown>];
+}
+
+function previewValue(row: Record<string, unknown>) {
+  const nested = row.payload;
+  const data = nested && typeof nested === "object" && !Array.isArray(nested) ? nested as Record<string, unknown> : row;
+  for (const key of ["content", "message", "body", "text", "title", "subject", "name"]) {
+    const value = data[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  const candidate = Object.entries(data).find(([, value]) => typeof value === "string" || typeof value === "number");
+  return candidate ? `${candidate[0]}: ${String(candidate[1])}` : "Structured record";
 }
 
 export function AddDataDialog({ open, onOpenChange, datasetId, onStaged }: {
@@ -112,8 +123,9 @@ export function AddDataDialog({ open, onOpenChange, datasetId, onStaged }: {
           </button>
         ) : (
           <div className="file-preview">
-            <div className="file-preview-heading"><span className="file-glyph">{file.name.endsWith(".csv") ? <FileCsvIcon size={22} /> : <FileJsIcon size={22} />}</span><span><strong>{file.name}</strong><small>{state === "parsing" ? "Reading…" : `${rows.length.toLocaleString()} records · ${fields.length} fields`}</small></span><button type="button" onClick={() => { setFile(null); setRows([]); }}>Replace</button></div>
-            {rows.length ? <div className="field-list">{fields.slice(0, 8).map((field) => <code key={field}>{field}</code>)}{fields.length > 8 ? <small>+{fields.length - 8}</small> : null}</div> : null}
+            <div className="file-preview-heading"><span className="file-glyph">{file.name.endsWith(".csv") ? <FileCsvIcon size={22} /> : <FileJsIcon size={22} />}</span><span><strong>{file.name}</strong><small>{state === "parsing" ? "Reading..." : `${rows.length.toLocaleString()} records · ${fields.length} fields`}</small></span><button type="button" onClick={() => { setFile(null); setRows([]); setState("idle"); }}>Replace</button></div>
+            {rows.length ? <div className="raw-file-preview"><div className="raw-preview-caption"><span>Raw preview</span><small>First {Math.min(3, rows.length)} records</small></div>{rows.slice(0, 3).map((row, index) => <div className="raw-preview-row" key={index}><code>{String(index + 1).padStart(2, "0")}</code><span><strong>{previewValue(row)}</strong><small>{Object.keys(row).slice(0, 5).join(" · ")}</small></span></div>)}</div> : null}
+            {rows.length ? <details className="field-disclosure"><summary>{fields.length} detected fields</summary><div className="field-list">{fields.slice(0, 12).map((field) => <code key={field}>{field}</code>)}{fields.length > 12 ? <small>+{fields.length - 12}</small> : null}</div></details> : null}
             <div className="upload-boundary"><LockKeyIcon size={17} /><span>The file stays in this local workspace. Staging does not run a recipe or publish an output.</span></div>
           </div>
         )}
@@ -121,10 +133,7 @@ export function AddDataDialog({ open, onOpenChange, datasetId, onStaged }: {
         {error ? <p className="form-error">{error}</p> : null}
       </div>
       <div className="dialog-footer">
-        <Dialog.Close><button className="secondary-button" type="button">Cancel</button></Dialog.Close>
-        <button className="primary-button" type="button" disabled={!rows.length || state === "staging" || state === "done"} onClick={() => void stage()}>
-          {state === "done" ? <><CheckCircleIcon size={17} /> Staged</> : <>Stage batch <ArrowRightIcon size={16} /></>}
-        </button>
+        {state === "done" ? <Dialog.Close><button className="primary-button" type="button"><CheckCircleIcon size={17} />Done</button></Dialog.Close> : <><Dialog.Close><button className="secondary-button" type="button">Cancel</button></Dialog.Close><button className="primary-button" type="button" disabled={!rows.length || state === "staging"} onClick={() => void stage()}>{state === "staging" ? "Staging..." : <>Stage batch <ArrowRightIcon size={16} /></>}</button></>}
       </div>
     </ModalShell>
   );

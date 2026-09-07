@@ -14,8 +14,8 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { DropdownMenu } from "@radix-ui/themes";
-import type { BatchSummary, Decision, EvidenceRecord, PageName, WorkspaceData } from "@/lib/contracts";
-import { AddDataDialog, type DialogName, RecordDialog, StepDialog } from "./dialogs";
+import type { BatchSummary, Decision, PageName, WorkspaceData } from "@/lib/contracts";
+import { AddDataDialog, type DialogName, StepDialog } from "./dialogs";
 import { DataPage, OutputsPage, PipelinePage, RecipesPage, ReviewPage, RunsPage } from "./pages";
 
 const navItems = [
@@ -63,13 +63,6 @@ function updateLocalDecision(workspace: WorkspaceData, recordId: string, decisio
     ...workspace,
     decision_breakdown: breakdown,
     records: workspace.records.map((item) => (item.id === recordId ? { ...item, decision } : item)),
-    stages: workspace.stages.map((item) =>
-      item.id === "review"
-        ? { ...item, count: breakdown.review }
-        : item.id === "curated"
-          ? { ...item, count: breakdown.accepted }
-          : item,
-    ),
   };
 }
 
@@ -78,8 +71,7 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
   const [page, setPage] = useState<PageName>("pipeline");
   const [selectedStageId, setSelectedStageId] = useState("signals");
   const [dialog, setDialog] = useState<DialogName>(null);
-  const [record, setRecord] = useState<EvidenceRecord | null>(null);
-  const [lastRun, setLastRun] = useState("8m ago");
+  const [lastRun, setLastRun] = useState(() => relativeTime(initialWorkspace.generated_at));
   const [notice, setNotice] = useState<Notice>(null);
   const [isRunning, startRun] = useTransition();
   const stage = workspace.stages.find((item) => item.id === selectedStageId) ?? workspace.stages[4];
@@ -146,11 +138,6 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
     setNotice({ tone: "success", message: "Batch staged for the next run" });
   }
 
-  function openRecord(next: EvidenceRecord) {
-    setRecord(next);
-    setDialog("record");
-  }
-
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -182,7 +169,7 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
 
       <section className="workspace-canvas">
         {notice ? <div className="operation-notice" data-tone={notice.tone} role="status">{notice.tone === "success" ? <CheckCircleIcon weight="fill" /> : <WarningCircleIcon weight="fill" />}{notice.message}<button type="button" aria-label="Dismiss notification" onClick={() => setNotice(null)}>×</button></div> : null}
-        {page === "pipeline" ? <PipelinePage workspace={workspace} selectedStageId={selectedStageId} onStage={setSelectedStageId} onRun={runPipeline} isRunning={isRunning} onStep={() => setDialog("step")} onRecord={openRecord} onDecision={changeDecision} lastRun={lastRun} /> : null}
+        {page === "pipeline" ? <PipelinePage workspace={workspace} selectedStageId={selectedStageId} onStage={setSelectedStageId} onRun={runPipeline} isRunning={isRunning} onStep={() => setDialog("step")} lastRun={lastRun} /> : null}
         {page === "data" ? <DataPage workspace={workspace} onAdd={() => setDialog("add-data")} /> : null}
         {page === "recipes" ? <RecipesPage workspace={workspace} /> : null}
         {page === "runs" ? <RunsPage workspace={workspace} /> : null}
@@ -190,9 +177,19 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
         {page === "outputs" ? <OutputsPage workspace={workspace} onDownload={() => downloadManifest(workspace)} /> : null}
       </section>
 
-      <RecordDialog record={record} open={dialog === "record"} onOpenChange={(open) => setDialog(open ? "record" : null)} />
       <StepDialog workspace={workspace} stage={stage} open={dialog === "step"} onOpenChange={(open) => setDialog(open ? "step" : null)} />
       <AddDataDialog datasetId={workspace.dataset.id} open={dialog === "add-data"} onOpenChange={(open) => setDialog(open ? "add-data" : null)} onStaged={stageBatch} />
     </main>
   );
+}
+
+function relativeTime(value: string) {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "unknown";
+  const elapsedMinutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
+  if (elapsedMinutes < 1) return "just now";
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`;
+  const hours = Math.round(elapsedMinutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }

@@ -85,6 +85,10 @@ func (e *TemporalEngine) Preview(ctx context.Context, runID, stageID string, lim
 	return e.localArtifacts.Preview(ctx, runID, stageID, limit)
 }
 
+func (e *TemporalEngine) Compare(ctx context.Context, runID, stageID string, limit int) ([]StageComparisonSample, error) {
+	return e.localArtifacts.Compare(ctx, runID, stageID, limit)
+}
+
 func (e *TemporalEngine) Close() {
 	e.client.Close()
 }

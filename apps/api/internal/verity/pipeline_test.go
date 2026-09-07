@@ -55,6 +55,27 @@ func TestGoPipelineReproducesTheDemoFunnel(t *testing.T) {
 	if err != nil || len(rows) != 3 {
 		t.Fatalf("unexpected bounded preview: %d rows, %v", len(rows), err)
 	}
+	comparison, err := engine.Compare(context.Background(), DemoRunID, "privacy", 8)
+	if err != nil || len(comparison) != 8 {
+		t.Fatalf("unexpected stage comparison: %d rows, %v", len(comparison), err)
+	}
+	foundFiltered, foundChanged := false, false
+	for _, sample := range comparison {
+		foundFiltered = foundFiltered || sample.Outcome == "filtered"
+		foundChanged = foundChanged || len(sample.ChangedFields) > 0
+	}
+	if !foundFiltered || !foundChanged {
+		t.Fatalf("comparison did not show both removals and transformations: %#v", comparison)
+	}
+	readyComparison, err := engine.Compare(context.Background(), DemoRunID, "curated", 8)
+	if err != nil || len(readyComparison) != 8 {
+		t.Fatalf("unexpected ready comparison: %d rows, %v", len(readyComparison), err)
+	}
+	for _, sample := range readyComparison {
+		if sample.Outcome != "routed" {
+			t.Fatalf("a branch comparison mislabeled a routed record: %#v", sample)
+		}
+	}
 }
 
 func TestGoPipelineRedactsBeforePublishing(t *testing.T) {

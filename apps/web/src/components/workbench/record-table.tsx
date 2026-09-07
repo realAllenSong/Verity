@@ -74,8 +74,8 @@ export function RecordTable({ records, selectedRecordId, onOpenRecord, onDecisio
 }
 
 function TransformationPreview({ before, after }: { before: Record<string, string>; after: Record<string, string> }) {
-  const [beforeKey, beforeValue] = Object.entries(before)[0] ?? ["input", "—"];
-  const [afterKey, afterValue] = Object.entries(after)[0] ?? ["output", "—"];
+  const [beforeKey, beforeValue] = Object.entries(before)[0] ?? ["input", "-"];
+  const [afterKey, afterValue] = Object.entries(after)[0] ?? ["output", "-"];
   return (
     <span className="transformation-preview">
       <span><small>{beforeKey}</small><code>{beforeValue}</code></span>

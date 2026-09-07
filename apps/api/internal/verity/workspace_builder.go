@@ -207,11 +207,11 @@ func sampleEvidence(signals []pipelineRecord) []EvidenceRecord {
 		records = append(records, EvidenceRecord{
 			ID: row.EventID, BatchID: row.BatchID,
 			BeforeFields: map[string]string{
-				"ts":    short(defaultString(row.OccurredAt, "—"), 23),
-				"state": defaultString(row.Status, "—"), "type": defaultString(row.Kind, "unknown"),
+				"ts":    short(defaultString(row.OccurredAt, "-"), 23),
+				"state": defaultString(row.Status, "-"), "type": defaultString(row.Kind, "unknown"),
 			},
 			AfterFields: map[string]string{
-				"timestamp": short(defaultString(row.OccurredAt, "—"), 20),
+				"timestamp": short(defaultString(row.OccurredAt, "-"), 20),
 				"status":    strings.ToLower(defaultString(row.Status, "unknown")), "signal": row.SignalType,
 			},
 			RawEvent: short(row.Content, 112), ExtractedSignal: row.ExtractedSignal,
@@ -256,7 +256,7 @@ func fieldCount(records []dataRecord) int {
 func fileSize(path string) string {
 	info, err := os.Stat(path)
 	if err != nil {
-		return "—"
+		return "-"
 	}
 	bytes := info.Size()
 	switch {

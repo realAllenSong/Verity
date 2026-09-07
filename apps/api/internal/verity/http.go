@@ -48,6 +48,7 @@ func NewHandler(store *Store, cfg HTTPConfig, logger *slog.Logger) http.Handler 
 	mux.HandleFunc("GET /api/v1/review-queue", server.reviewQueue)
 	mux.HandleFunc("PATCH /api/v1/reviews/{record_id}", server.updateReview)
 	mux.HandleFunc("GET /api/v1/stages/{stage_id}/preview", server.stagePreview)
+	mux.HandleFunc("GET /api/v1/stages/{stage_id}/comparison", server.stageComparison)
 	mux.HandleFunc("POST /api/v1/integrations/airbyte/syncs", server.triggerAirbyteSync)
 	mux.HandleFunc("GET /api/v1/integrations/airbyte/jobs/{job_id}", server.airbyteJob)
 	mux.HandleFunc("OPTIONS /{path...}", server.options)
@@ -190,6 +191,32 @@ func (s *HTTPServer) stagePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, PreviewResponse{StageID: stageID, Count: len(rows), Rows: rows})
+}
+
+func (s *HTTPServer) stageComparison(w http.ResponseWriter, r *http.Request) {
+	limit := 8
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 20 {
+			s.problem(w, r, http.StatusUnprocessableEntity, "invalid_limit", "Limit must be between 1 and 20")
+			return
+		}
+		limit = parsed
+	}
+	response, err := s.store.Compare(r.Context(), r.PathValue("stage_id"), limit)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			s.problem(w, r, http.StatusNotFound, "stage_not_found", "Pipeline stage not found")
+			return
+		}
+		s.logger.Error("stage comparison failed", "request_id", requestID(r.Context()), "error", err)
+		s.problem(w, r, http.StatusInternalServerError, "comparison_failed", "The stage comparison could not be read")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *HTTPServer) triggerAirbyteSync(w http.ResponseWriter, r *http.Request) {

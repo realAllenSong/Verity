@@ -13,6 +13,7 @@ The repository is dataset-first. Inputs arrive as independent batches of generic
 - atomic JSONL stage snapshots, CSV and Parquet exports, and JSONL decision lineage
 - a persistent human review loop for uncertain decisions
 - complete Pipeline, Data, Recipes, Runs, Review, and Outputs workspaces
+- per-stage artifact comparisons showing representative input, output, changed fields, and filtering reasons
 - local JSON, JSONL, and CSV batch staging with checksums and idempotent retries
 - one Go service for the control plane and in-process data plane, with strict requests, atomic local state and artifacts, ETags, readiness, optional bearer auth, structured errors, request IDs, access logs, and graceful shutdown
 - checked-in JSON Schema and OpenAPI contracts
@@ -40,6 +41,16 @@ make web
 ```
 
 Open `http://127.0.0.1:3000`. The web app uses the checked-in synthetic snapshot when the API is unavailable.
+
+To exercise the complete white-box flow:
+
+1. Open **Data**, choose **Add data**, and upload `sample_data/examples/noisy-workflow-events.json`.
+2. Confirm the raw preview, then choose **Stage batch** and **Done**.
+3. Return to **Pipeline** and choose **Run pipeline**.
+4. Open Raw, Normalize, Privacy, Quality, Extract, Review, and Ready in order. Each stage reads the current run artifact and shows representative records, transformations, and removal reasons.
+5. Click any record to compare its fields before and after the selected boundary. Use **Filtered out** when available to isolate rejected examples.
+
+The sample deliberately contains duplicate IDs, schema aliases, sensitive values, malformed records, unsupported content, low-confidence signals, and accepted signals. It is safe synthetic data and is intended for hands-on validation.
 
 Run unit, contract, lint, and production-build verification with:
 

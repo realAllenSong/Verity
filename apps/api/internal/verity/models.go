@@ -181,3 +181,21 @@ type PreviewResponse struct {
 	Count   int               `json:"count"`
 	Rows    []json.RawMessage `json:"rows"`
 }
+
+type StageComparisonSample struct {
+	RecordID      string          `json:"record_id"`
+	Outcome       string          `json:"outcome"`
+	Before        json.RawMessage `json:"before,omitempty"`
+	After         json.RawMessage `json:"after,omitempty"`
+	Reason        string          `json:"reason,omitempty"`
+	ChangedFields []string        `json:"changed_fields,omitempty"`
+}
+
+type StageComparisonResponse struct {
+	StageID       string                  `json:"stage_id"`
+	PreviousStage string                  `json:"previous_stage_id,omitempty"`
+	InputCount    int                     `json:"input_count"`
+	OutputCount   int                     `json:"output_count"`
+	RemovedCount  int                     `json:"removed_count"`
+	Samples       []StageComparisonSample `json:"samples"`
+}

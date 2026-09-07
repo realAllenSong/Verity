@@ -17,7 +17,7 @@ temporal-worker:
 	cd apps/api && go run ./cmd/verity-worker
 
 web:
-	npm run dev
+	VERITY_API_URL=http://127.0.0.1:8000 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
 
 test:
 	cd apps/api && go test ./...

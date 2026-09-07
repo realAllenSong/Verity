@@ -41,6 +41,10 @@ func (f fakeEngine) Preview(_ context.Context, _, _ string, limit int) ([]json.R
 	return rows, nil
 }
 
+func (f fakeEngine) Compare(_ context.Context, _, _ string, _ int) ([]StageComparisonSample, error) {
+	return []StageComparisonSample{{RecordID: "rec_1", Outcome: "kept", After: json.RawMessage(`{"record_id":"rec_1"}`)}}, nil
+}
+
 func testServer(t *testing.T, token string) (*Store, http.Handler, StoreConfig, fakeEngine) {
 	t.Helper()
 	repoRoot, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
@@ -127,6 +131,7 @@ func TestBatchStagingIsIdempotentAndPersistent(t *testing.T) {
 
 func TestReviewDecisionPersists(t *testing.T) {
 	store, handler, cfg, engine := testServer(t, "")
+	stagesBefore := store.Workspace().Stages
 	_, records := store.ReviewQueue()
 	if len(records) == 0 {
 		t.Fatal("seed workspace has no sampled review records")
@@ -146,6 +151,18 @@ func TestReviewDecisionPersists(t *testing.T) {
 	if reloaded.Workspace().DecisionBreakdown.Review != store.Workspace().DecisionBreakdown.Review {
 		t.Fatal("review count did not survive restart")
 	}
+	for index, stage := range store.Workspace().Stages {
+		if stage.Count != stagesBefore[index].Count {
+			t.Fatal("review override mutated an immutable run-stage count")
+		}
+	}
+	resolvedCount := store.Workspace().DecisionBreakdown.Review
+	if _, err := store.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if store.Workspace().DecisionBreakdown.Review != resolvedCount {
+		t.Fatal("review override disappeared after the next pipeline run")
+	}
 }
 
 func TestAuthenticationValidationAndPreview(t *testing.T) {
@@ -164,12 +181,43 @@ func TestAuthenticationValidationAndPreview(t *testing.T) {
 		t.Fatalf("unexpected preview: %d %s", preview.Code, preview.Body.String())
 	}
 
+	comparisonRequest := httptest.NewRequest(http.MethodGet, "/api/v1/stages/signals/comparison?limit=8", nil)
+	comparisonRequest.Header.Set("Authorization", "Bearer test-token")
+	comparison := httptest.NewRecorder()
+	handler.ServeHTTP(comparison, comparisonRequest)
+	if comparison.Code != http.StatusOK || !strings.Contains(comparison.Body.String(), `"previous_stage_id":"quality"`) {
+		t.Fatalf("unexpected comparison: %d %s", comparison.Code, comparison.Body.String())
+	}
+
 	invalid := httptest.NewRequest(http.MethodPost, "/api/v1/datasets/workflow-signals/batches", strings.NewReader(`{"filename":"x","records":[],"unknown":true}`))
 	invalid.Header.Set("Authorization", "Bearer test-token")
 	invalidResponse := httptest.NewRecorder()
 	handler.ServeHTTP(invalidResponse, invalid)
 	if invalidResponse.Code != http.StatusBadRequest {
 		t.Fatalf("expected strict JSON validation, got %d", invalidResponse.Code)
+	}
+}
+
+func TestPortableEnvelopeStagingPreservesIdentityAndMetadata(t *testing.T) {
+	store, _, cfg, _ := testServer(t, "")
+	response, _, err := store.StageBatch("workflow-signals", BatchCreate{
+		Filename: "portable.json",
+		Records: []map[string]interface{}{{
+			"record_id": "portable_evt_001",
+			"payload":   map[string]interface{}{"message": "Asked in Slack for the approved internal API client."},
+			"metadata":  map[string]interface{}{"evidence_count": float64(4)},
+		}},
+	}, "portable-envelope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(cfg.ArtifactsDir, "staged", response.Batch.ID+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, `"record_id":"portable_evt_001"`) || !strings.Contains(text, `"evidence_count":4`) {
+		t.Fatalf("portable envelope fields were not preserved: %s", text)
 	}
 }
 
@@ -212,6 +260,7 @@ func TestOpenAPIContainsEveryPublicOperation(t *testing.T) {
 		"/health", "/ready", "/api/v1/workspace", "/api/v1/runs",
 		"/api/v1/datasets/{dataset_id}/batches", "/api/v1/review-queue",
 		"/api/v1/reviews/{record_id}", "/api/v1/stages/{stage_id}/preview",
+		"/api/v1/stages/{stage_id}/comparison",
 		"/api/v1/integrations/airbyte/syncs", "/api/v1/integrations/airbyte/jobs/{job_id}",
 	} {
 		if !strings.Contains(string(data), `"`+path+`"`) {

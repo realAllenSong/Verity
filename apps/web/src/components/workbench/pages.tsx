@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowDownIcon,
   ArrowRightIcon,
@@ -21,12 +21,12 @@ import {
   WarningCircleIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
-import type { Decision, EvidenceRecord, PipelineStage, RecipeOperator, RunSummary, WorkspaceData } from "@/lib/contracts";
+import type { Decision, EvidenceRecord, PipelineStage, RecipeOperator, RunSummary, StageComparison, WorkspaceData } from "@/lib/contracts";
 import { PipelineFlow } from "./pipeline-flow";
-import { RecordTable } from "./record-table";
+import { StageComparisonView } from "./stage-comparison";
 import { DistributionView, SchemaView } from "./stage-views";
 
-type TabName = "records" | "distribution" | "schema";
+type TabName = "records" | "insights" | "schema";
 
 function PageHeader({ meta, title, description, children }: { meta?: string; title: string; description?: string; children?: React.ReactNode }) {
   return (
@@ -53,25 +53,48 @@ function Status({ state }: { state: string }) {
   );
 }
 
-export function PipelinePage({ workspace, selectedStageId, onStage, onRun, isRunning, onStep, onRecord, onDecision, lastRun }: {
+export function PipelinePage({ workspace, selectedStageId, onStage, onRun, isRunning, onStep, lastRun }: {
   workspace: WorkspaceData;
   selectedStageId: string;
   onStage: (id: string) => void;
   onRun: () => void;
   isRunning: boolean;
   onStep: () => void;
-  onRecord: (record: EvidenceRecord) => void;
-  onDecision: (id: string, decision: Decision) => void;
   lastRun: string;
 }) {
   const [tab, setTab] = useState<TabName>("records");
+  const [comparisonState, setComparisonState] = useState<{ key: string; data: StageComparison | null; error: string }>({ key: "", data: null, error: "" });
   const selected = workspace.stages.find((stage) => stage.id === selectedStageId) ?? workspace.stages[4];
-  const visible = useMemo(() => {
-    if (selectedStageId === "review") return workspace.records.filter((record) => record.decision === "review");
-    if (selectedStageId === "curated") return workspace.records.filter((record) => record.decision !== "review" && record.decision !== "rejected");
-    return workspace.records;
-  }, [selectedStageId, workspace.records]);
   const passedChecks = selected.checks?.filter((check) => check.state === "passed").length;
+  const supportsInsights = ["signals", "review", "curated"].includes(selectedStageId);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  const activeTab = !supportsInsights && tab === "insights" ? "records" : tab;
+  const comparisonKey = `${workspace.run_id}:${selectedStageId}`;
+  const comparison = comparisonState.key === comparisonKey ? comparisonState.data : null;
+  const comparisonError = !apiUrl ? "Connect the local API to inspect stage artifacts." : comparisonState.key === comparisonKey ? comparisonState.error : "";
+  const comparisonLoading = Boolean(apiUrl) && comparisonState.key !== comparisonKey;
+
+  useEffect(() => {
+    if (!apiUrl) return;
+    const controller = new AbortController();
+    let active = true;
+    void fetch(`${apiUrl}/api/v1/stages/${selectedStageId}/comparison?limit=10`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`comparison returned ${response.status}`);
+        const data = await response.json() as StageComparison;
+        if (active) setComparisonState({ key: comparisonKey, data, error: "" });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (active) setComparisonState({ key: comparisonKey, data: null, error: "This stage snapshot could not be loaded." });
+      });
+    return () => { active = false; controller.abort(); };
+  }, [apiUrl, comparisonKey, selectedStageId]);
+
+  const removed = comparison?.removed_count ?? Math.max(0, selected.input_count - selected.count);
+  const retained = selected.input_count ? Math.round((selected.count / selected.input_count) * 1000) / 10 : 100;
+  const branch = selectedStageId === "review" || selectedStageId === "curated";
 
   return (
     <>
@@ -80,30 +103,32 @@ export function PipelinePage({ workspace, selectedStageId, onStage, onRun, isRun
         <button className="primary-button" type="button" onClick={onRun} disabled={isRunning}><PlayIcon weight="fill" size={16} />{isRunning ? "Running…" : "Run pipeline"}</button>
       </PageHeader>
 
-      <PipelineFlow stages={workspace.stages} selectedStage={selectedStageId} onSelect={onStage} />
+      <PipelineFlow stages={workspace.stages} selectedStage={selectedStageId} onSelect={onStage} isRunning={isRunning} />
 
-      <section className="panel stage-panel">
+      <section className="panel stage-panel" key={`${workspace.run_id}-${selectedStageId}`}>
         <div className="panel-heading stage-heading">
           <div><span className="section-kicker">Selected stage</span><h2>{selected.label}</h2><p>{selected.description}</p></div>
           <div className="stage-summary">
+            <span className="stage-metric"><small>{branch ? "Routed" : "Input"}</small><strong>{selected.input_count.toLocaleString()}</strong></span>
+            <span className="stage-metric"><small>Output</small><strong>{selected.count.toLocaleString()}</strong></span>
+            <span className="stage-metric"><small>{branch ? "Share" : "Retained"}</small><strong>{retained}%</strong></span>
+            {!branch && removed > 0 ? <span className="stage-metric muted"><small>Filtered</small><strong>{removed.toLocaleString()}</strong></span> : null}
             {passedChecks !== undefined ? <span><CheckCircleIcon weight="fill" />{passedChecks}/{selected.checks?.length} checks passed</span> : null}
             <button className="quiet-button" type="button" onClick={onStep}><InfoIcon />Details</button>
           </div>
         </div>
         <div className="tabbar" role="tablist">
-          {(["records", "distribution", "schema"] as TabName[]).map((name) => <button key={name} role="tab" aria-selected={tab === name} onClick={() => setTab(name)}>{name[0].toUpperCase() + name.slice(1)}</button>)}
-          <span>{selected.count.toLocaleString()} records</span>
+          <button role="tab" aria-selected={activeTab === "records"} onClick={() => setTab("records")}>Records</button>
+          {supportsInsights ? <button role="tab" aria-selected={activeTab === "insights"} onClick={() => setTab("insights")}>Signal mix</button> : null}
+          <button role="tab" aria-selected={activeTab === "schema"} onClick={() => setTab("schema")}>Schema</button>
+          <span>Snapshot {workspace.run_id.replace("run_", "")}</span>
         </div>
-        {tab === "records" ? <><RecordTable records={visible.slice(0, 7)} selectedRecordId={null} onOpenRecord={onRecord} onDecision={onDecision} /><TablePager shown={Math.min(visible.length, 7)} total={selected.count} /></> : null}
-        {tab === "distribution" ? <DistributionView data={workspace.signal_distribution} /> : null}
-        {tab === "schema" ? <SchemaView workspace={workspace} /> : null}
+        {activeTab === "records" ? <StageComparisonView comparison={comparison} loading={comparisonLoading} error={comparisonError} /> : null}
+        {activeTab === "insights" ? <DistributionView data={workspace.signal_distribution} /> : null}
+        {activeTab === "schema" ? <SchemaView workspace={workspace} /> : null}
       </section>
     </>
   );
-}
-
-function TablePager({ shown, total }: { shown: number; total: number }) {
-  return <footer className="table-footer"><span>Showing {shown} of {total.toLocaleString()}</span><div><button disabled type="button">Previous</button><strong>1</strong><button type="button">Next</button></div></footer>;
 }
 
 export function DataPage({ workspace, onAdd }: { workspace: WorkspaceData; onAdd: () => void }) {

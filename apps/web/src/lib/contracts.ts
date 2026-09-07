@@ -117,6 +117,24 @@ export interface EvidenceRecord {
   metadata: Record<string, string>;
 }
 
+export interface StageComparisonSample {
+  record_id: string;
+  outcome: "input" | "normalized" | "kept" | "filtered" | "routed";
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  reason?: string;
+  changed_fields?: string[];
+}
+
+export interface StageComparison {
+  stage_id: string;
+  previous_stage_id?: string;
+  input_count: number;
+  output_count: number;
+  removed_count: number;
+  samples: StageComparisonSample[];
+}
+
 export interface WorkspaceData {
   dataset: DatasetSummary;
   generated_at: string;

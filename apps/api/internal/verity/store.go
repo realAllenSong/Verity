@@ -139,14 +139,6 @@ func (s *Store) UpdateReview(recordID string, update ReviewUpdate) (Workspace, e
 	if note := strings.TrimSpace(update.Note); note != "" {
 		s.workspace.Records[index].Reason = note
 	}
-	for i := range s.workspace.Stages {
-		switch s.workspace.Stages[i].ID {
-		case "review":
-			s.workspace.Stages[i].Count = s.workspace.DecisionBreakdown.Review
-		case "curated":
-			s.workspace.Stages[i].Count = s.workspace.DecisionBreakdown.Accepted
-		}
-	}
 	now := time.Now().UTC().Truncate(time.Second).Format(time.RFC3339)
 	s.reviewEvents = append(s.reviewEvents, ReviewEvent{
 		RecordID: recordID, Previous: previous, Decision: update.Decision,
@@ -271,6 +263,7 @@ func (s *Store) Run(ctx context.Context) (RunResponse, error) {
 	}
 	oldEvents := s.workspace.RunEvents
 	s.enrich(&fresh)
+	applyReviewOverrides(&fresh, s.reviewEvents)
 	fresh.RunEvents = append([]RunEvent{{
 		RunID: runID, EventType: "COMPLETE", EventTime: finished.Format(time.RFC3339),
 		Job: fresh.Recipe.ID,
@@ -289,6 +282,28 @@ func (s *Store) Run(ctx context.Context) (RunResponse, error) {
 	return RunResponse{RunID: runID, State: "succeeded", StageCounts: counts}, nil
 }
 
+func applyReviewOverrides(workspace *Workspace, events []ReviewEvent) {
+	latest := make(map[string]ReviewEvent, len(events))
+	for _, event := range events {
+		latest[event.RecordID] = event
+	}
+	for index := range workspace.Records {
+		event, exists := latest[workspace.Records[index].ID]
+		if !exists {
+			continue
+		}
+		previous := workspace.Records[index].Decision
+		if previous != event.Decision {
+			adjustDecision(&workspace.DecisionBreakdown, previous, -1)
+			adjustDecision(&workspace.DecisionBreakdown, event.Decision, 1)
+		}
+		workspace.Records[index].Decision = event.Decision
+		if event.Note != "" {
+			workspace.Records[index].Reason = event.Note
+		}
+	}
+}
+
 func (s *Store) Preview(ctx context.Context, stageID string, limit int) ([]json.RawMessage, error) {
 	s.mu.RLock()
 	runID := s.workspace.RunID
@@ -304,6 +319,35 @@ func (s *Store) Preview(ctx context.Context, stageID string, limit int) ([]json.
 		return nil, ErrNotFound
 	}
 	return s.engine.Preview(ctx, runID, stageID, limit)
+}
+
+func (s *Store) Compare(ctx context.Context, stageID string, limit int) (StageComparisonResponse, error) {
+	s.mu.RLock()
+	runID := s.workspace.RunID
+	var selected *PipelineStage
+	for index := range s.workspace.Stages {
+		if s.workspace.Stages[index].ID == stageID {
+			stage := s.workspace.Stages[index]
+			selected = &stage
+			break
+		}
+	}
+	s.mu.RUnlock()
+	if selected == nil {
+		return StageComparisonResponse{}, ErrNotFound
+	}
+	samples, err := s.engine.Compare(ctx, runID, stageID, limit)
+	if err != nil {
+		return StageComparisonResponse{}, err
+	}
+	removed := max(0, selected.InputCount-selected.Count)
+	if stageID == "raw" || stageID == "review" || stageID == "curated" {
+		removed = 0
+	}
+	return StageComparisonResponse{
+		StageID: stageID, PreviousStage: previousStage[stageID], InputCount: selected.InputCount,
+		OutputCount: selected.Count, RemovedCount: removed, Samples: samples,
+	}, nil
 }
 
 func (s *Store) IsReady() error {
@@ -337,16 +381,34 @@ func (s *Store) writeBatch(batch BatchSummary, records []map[string]interface{})
 	temporaryName := temporary.Name()
 	defer os.Remove(temporaryName)
 	encoder := json.NewEncoder(temporary)
-	for index, payload := range records {
+	for index, uploaded := range records {
+		payload := uploaded
+		metadata := map[string]interface{}{
+			"filename": batch.Filename, "state": "staged", "checksum": batch.Checksum,
+		}
+		recordID := fmt.Sprintf("rec_%s_%06d", batch.ID[6:14], index)
+		if nested, ok := uploaded["payload"].(map[string]interface{}); ok {
+			payload = nested
+			if provided := safeRecordID(asString(uploaded["record_id"])); provided != "" {
+				recordID = provided
+			}
+			if uploadedMetadata, ok := uploaded["metadata"].(map[string]interface{}); ok {
+				for key, value := range uploadedMetadata {
+					metadata[key] = value
+				}
+			}
+		} else if provided := safeRecordID(asString(uploaded["record_id"])); provided != "" {
+			recordID = provided
+			payload = cloneAnyMap(uploaded)
+			delete(payload, "record_id")
+		}
 		envelope := map[string]interface{}{
-			"record_id":   fmt.Sprintf("rec_%s_%06d", batch.ID[6:14], index),
+			"record_id":   recordID,
 			"dataset_id":  s.workspace.Dataset.ID,
 			"batch_id":    batch.ID,
 			"ingested_at": batch.AddedAt,
 			"payload":     payload,
-			"metadata": map[string]interface{}{
-				"filename": batch.Filename, "state": "staged", "checksum": batch.Checksum,
-			},
+			"metadata":    metadata,
 		}
 		if err := encoder.Encode(envelope); err != nil {
 			temporary.Close()
@@ -367,6 +429,14 @@ func (s *Store) writeBatch(batch BatchSummary, records []map[string]interface{})
 		return fmt.Errorf("commit staged batch: %w", err)
 	}
 	return nil
+}
+
+func safeRecordID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 200 || strings.ContainsAny(value, "\r\n\t/\\") {
+		return ""
+	}
+	return value
 }
 
 func (s *Store) writeReviewProjectionLocked() error {

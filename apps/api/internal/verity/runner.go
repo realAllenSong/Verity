@@ -14,6 +14,7 @@ import (
 type Engine interface {
 	Run(ctx context.Context, runID string) error
 	Preview(ctx context.Context, runID, stageID string, limit int) ([]json.RawMessage, error)
+	Compare(ctx context.Context, runID, stageID string, limit int) ([]StageComparisonSample, error)
 }
 
 // LocalEngine runs the complete data plane in-process. It is the dependency-free
@@ -81,6 +82,10 @@ func (e LocalEngine) Preview(
 		}
 	}
 	return rows, nil
+}
+
+func (e LocalEngine) Compare(ctx context.Context, runID, stageID string, limit int) ([]StageComparisonSample, error) {
+	return compareStageArtifacts(ctx, e.ArtifactsDir, runID, stageID, limit)
 }
 
 func validStageID(value string) bool {

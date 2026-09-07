@@ -243,18 +243,41 @@ func normalize(records []dataRecord) []pipelineRecord {
 	rows := make([]pipelineRecord, 0, len(order))
 	for _, id := range order {
 		record := deduplicated[id]
-		content := cleanSpace(footerPattern.ReplaceAllString(asString(record.Payload["content"]), " "))
+		content := cleanSpace(footerPattern.ReplaceAllString(firstString(record.Payload, "content", "message", "body", "text"), " "))
+		metadata := cloneAnyMap(record.Metadata)
+		if record.IngestedAt != "" {
+			metadata["ingested_at"] = record.IngestedAt
+		}
+		if _, exists := metadata["evidence_count"]; !exists {
+			if evidenceCount := asInt(record.Payload["evidence_count"]); evidenceCount > 0 {
+				metadata["evidence_count"] = evidenceCount
+			}
+		}
+		if _, exists := metadata["sensitive_only"]; !exists && asBool(record.Payload["sensitive_only"]) {
+			metadata["sensitive_only"] = true
+		}
 		digest := sha256.Sum256([]byte(strings.ToLower(content)))
 		rows = append(rows, pipelineRecord{
 			EventID: record.RecordID, DatasetID: record.DatasetID, BatchID: record.BatchID,
-			Kind:       strings.ToLower(strings.TrimSpace(defaultString(asString(record.Payload["kind"]), "unknown"))),
-			OccurredAt: asString(record.Payload["occurred_at"]), Actor: asString(record.Payload["actor"]),
-			ThreadID: asString(record.Payload["thread_id"]), Title: cleanSpace(asString(record.Payload["title"])),
-			Content: content, Status: asString(record.Payload["status"]), Metadata: cloneAnyMap(record.Metadata),
+			Kind:       strings.ToLower(strings.TrimSpace(defaultString(firstString(record.Payload, "kind", "type", "event_type"), "unknown"))),
+			OccurredAt: firstString(record.Payload, "occurred_at", "timestamp", "created_at", "time"),
+			Actor:      firstString(record.Payload, "actor", "author", "owner"),
+			ThreadID:   firstString(record.Payload, "thread_id", "conversation_id", "ticket_id"),
+			Title:      cleanSpace(firstString(record.Payload, "title", "subject", "name")),
+			Content:    content, Status: firstString(record.Payload, "status", "state"), Metadata: metadata,
 			ContentFingerprint: hex.EncodeToString(digest[:8]),
 		})
 	}
 	return rows
+}
+
+func firstString(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(asString(values[key])); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func privacyFilter(rows []pipelineRecord, runID string) ([]pipelineRecord, []decisionRecord) {

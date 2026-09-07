@@ -2,6 +2,8 @@ import workspaceFixture from "@/data/demo-workspace.json";
 import { Workbench } from "@/components/workbench/workbench";
 import type { WorkspaceData } from "@/lib/contracts";
 
+export const dynamic = "force-dynamic";
+
 async function loadWorkspace(): Promise<WorkspaceData> {
   const apiUrl = process.env.VERITY_API_URL;
   if (!apiUrl) return workspaceFixture as WorkspaceData;

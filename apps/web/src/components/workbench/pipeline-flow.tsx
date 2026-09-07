@@ -4,15 +4,17 @@ interface PipelineFlowProps {
   stages: PipelineStage[];
   selectedStage: string;
   onSelect: (stageId: string) => void;
+  isRunning: boolean;
 }
 
-export function PipelineFlow({ stages, selectedStage, onSelect }: PipelineFlowProps) {
+export function PipelineFlow({ stages, selectedStage, onSelect, isRunning }: PipelineFlowProps) {
   const core = stages.filter((stage) => !["review", "curated"].includes(stage.id));
   const review = stages.find((stage) => stage.id === "review");
   const ready = stages.find((stage) => stage.id === "curated");
 
   return (
-    <div className="pipeline-flow" aria-label="Pipeline stages">
+    <div className="pipeline-flow" aria-label="Pipeline stages" data-running={isRunning}>
+      {isRunning ? <div className="run-progress" role="status"><span>Processing locally</span><i /></div> : null}
       <div className="pipeline-core">
         {core.map((stage, index) => (
           <div className="pipeline-step-wrap" key={stage.id}>
