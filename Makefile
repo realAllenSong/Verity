@@ -1,4 +1,4 @@
-.PHONY: bootstrap generate fixtures-small fixtures-load fixtures-stress contracts api temporal-worker web test lint build verify
+.PHONY: bootstrap generate fixtures-small fixtures-load fixtures-stress contracts api temporal-worker web cli mcp test lint build verify e2e acceptance load stress
 
 bootstrap:
 	npm install
@@ -33,6 +33,14 @@ temporal-worker:
 web:
 	VERITY_API_URL=http://127.0.0.1:8000 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev
 
+cli:
+	mkdir -p bin
+	cd apps/api && go build -o ../../bin/verity ./cmd/verity
+
+mcp:
+	mkdir -p bin
+	cd apps/api && go build -o ../../bin/verity-mcp ./cmd/verity-mcp
+
 test:
 	cd apps/api && go test ./...
 	npm run test:web
@@ -45,3 +53,15 @@ build:
 	npm run build
 
 verify: generate contracts test lint build
+
+e2e:
+	npm run test:e2e --workspace @verity/web
+
+acceptance:
+	bash tests/acceptance/cross-surface.sh
+
+load:
+	VERITY_LOAD_RECORDS=100000 bash tests/load/import-e2e.sh
+
+stress:
+	VERITY_LOAD_RECORDS=1000000 bash tests/load/import-e2e.sh

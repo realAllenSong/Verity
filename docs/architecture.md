@@ -33,7 +33,7 @@ flowchart LR
 - optional bearer authentication and explicit CORS allowlists
 - idempotent batch staging with content checksums
 - atomic, permission-restricted local state and review persistence
-- START, COMPLETE, and FAIL lifecycle events
+- START, per-stage committed, review-required, output-ready, COMPLETE, and FAIL lifecycle events
 - deterministic normalization, privacy filtering, quality scoring, signal extraction,
   review routing, and publication
 - atomic JSONL stage artifacts, CSV and Parquet outputs, decision lineage, and verified record counts

@@ -99,6 +99,30 @@ func TestWorkspaceHealthAndConditionalRead(t *testing.T) {
 	}
 }
 
+func TestOutputDownloadIncludesVerifiableChecksum(t *testing.T) {
+	store, handler, cfg, _ := testServer(t, "")
+	workspace := store.Workspace()
+	if len(workspace.Outputs) == 0 {
+		t.Fatal("seed workspace has no outputs")
+	}
+	outputID := "out_ready_parquet"
+	path := filepath.Join(cfg.ArtifactsDir, workspace.RunID, "curated.parquet")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("curated bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/outputs/"+outputID, nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("download returned %d: %s", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("X-Verity-SHA256"); got != "e7b66d8c49422d62ce61f92a7e677508bf600bc015eae96ec4c91d0108d2dfde" {
+		t.Fatalf("checksum header = %q", got)
+	}
+}
+
 func TestBatchStagingIsIdempotentAndPersistent(t *testing.T) {
 	_, handler, cfg, engine := testServer(t, "")
 	body := `{"filename":"measurements.json","records":[{"timestamp":"2026-09-04T12:00:00Z","value":42}]}`

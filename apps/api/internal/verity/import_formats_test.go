@@ -137,6 +137,89 @@ func TestRecordStreamReportsMalformedJSONLLine(t *testing.T) {
 	}
 }
 
+func TestCanonicalImportSupportsEveryAdvertisedFormat(t *testing.T) {
+	parquetPayload := func(t *testing.T) []byte {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "events.parquet")
+		file, err := os.Create(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer := parquet.NewGenericWriter[parquetFormatFixture](file)
+		if _, err := writer.Write([]parquetFormatFixture{{ID: 1, Message: "alpha", Active: true}, {ID: 2, Message: "beta", Active: false}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	gzipPayload := func(t *testing.T, payload string) []byte {
+		t.Helper()
+		var compressed bytes.Buffer
+		writer := gzip.NewWriter(&compressed)
+		if _, err := writer.Write([]byte(payload)); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return compressed.Bytes()
+	}
+	tests := []struct {
+		name     string
+		filename string
+		payload  func(*testing.T) []byte
+		format   string
+		count    int
+	}{
+		{name: "csv", filename: "events.csv", payload: func(*testing.T) []byte { return []byte("id,message\n1,alpha\n2,beta\n") }, format: "csv", count: 2},
+		{name: "tsv", filename: "events.tsv", payload: func(*testing.T) []byte { return []byte("id\tmessage\n1\talpha\n2\tbeta\n") }, format: "tsv", count: 2},
+		{name: "json array", filename: "events.json", payload: func(*testing.T) []byte { return []byte(`[{"id":1,"message":"alpha"},{"id":2,"message":"beta"}]`) }, format: "json", count: 2},
+		{name: "json object", filename: "event.json", payload: func(*testing.T) []byte { return []byte(`{"id":1,"message":"alpha"}`) }, format: "json", count: 1},
+		{name: "jsonl", filename: "events.jsonl", payload: func(*testing.T) []byte {
+			return []byte("{\"id\":1,\"message\":\"alpha\"}\n{\"id\":2,\"message\":\"beta\"}\n")
+		}, format: "jsonl", count: 2},
+		{name: "ndjson", filename: "events.ndjson", payload: func(*testing.T) []byte {
+			return []byte("{\"id\":1,\"message\":\"alpha\"}\n{\"id\":2,\"message\":\"beta\"}\n")
+		}, format: "jsonl", count: 2},
+		{name: "gzip csv", filename: "events.csv.gz", payload: func(t *testing.T) []byte { return gzipPayload(t, "id,message\n1,alpha\n2,beta\n") }, format: "csv.gz", count: 2},
+		{name: "parquet", filename: "events.parquet", payload: parquetPayload, format: "parquet", count: 2},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			staged := filepath.Join(root, "staged")
+			if err := os.MkdirAll(staged, 0o750); err != nil {
+				t.Fatal(err)
+			}
+			source := filepath.Join(root, test.filename)
+			if err := os.WriteFile(source, test.payload(t), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			store := &Store{cfg: StoreConfig{ArtifactsDir: root}}
+			batch, format, err := store.canonicalizeImport(t.Context(), ImportSummary{DatasetID: "dataset", Filename: test.filename}, source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if format.String() != test.format || batch.RecordCount != test.count {
+				t.Fatalf("format=%s records=%d, want %s/%d", format.String(), batch.RecordCount, test.format, test.count)
+			}
+			count, err := countJSONLines(filepath.Join(staged, batch.ID+".jsonl"))
+			if err != nil || count != test.count {
+				t.Fatalf("canonical rows=%d err=%v, want %d", count, err, test.count)
+			}
+		})
+	}
+}
+
 func collectRecordStream(t *testing.T, reader io.Reader, format InputFormat) []map[string]any {
 	t.Helper()
 	stream, err := OpenRecordStream(reader, format)

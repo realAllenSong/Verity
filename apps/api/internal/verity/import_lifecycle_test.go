@@ -76,6 +76,32 @@ func TestUploadResumesAndCompletionAutoStartsJob(t *testing.T) {
 	if imported != 1 {
 		t.Fatalf("imported batch has %d records, want 1", imported)
 	}
+	events, ok := store.JobEvents(job.ID, 0)
+	if !ok {
+		t.Fatal("job events missing")
+	}
+	committed := make(map[string]int)
+	curatedIndex := -1
+	outputIndex := -1
+	for index, event := range events {
+		if event.EventType == "stage_committed" {
+			committed[event.StageID]++
+			if event.StageID == "curated" {
+				curatedIndex = index
+			}
+		}
+		if event.EventType == "output_ready" {
+			outputIndex = index
+		}
+	}
+	for _, stageID := range []string{"raw", "normalize", "privacy", "quality", "signals", "review", "curated"} {
+		if committed[stageID] != 1 {
+			t.Fatalf("%s committed events=%d, want 1", stageID, committed[stageID])
+		}
+	}
+	if curatedIndex < 0 || outputIndex <= curatedIndex {
+		t.Fatal("output was announced before the final stage committed")
+	}
 }
 
 func TestUploadRejectsWrongOffsetAndIncompleteCompletion(t *testing.T) {

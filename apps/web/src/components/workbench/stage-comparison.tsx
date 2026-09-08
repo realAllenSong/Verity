@@ -43,14 +43,15 @@ function outcomeLabel(outcome: StageComparisonSample["outcome"]) {
   return "Kept";
 }
 
-function PropertyGrid({ record }: { record?: Record<string, unknown> }) {
+function PropertyGrid({ record, changedFields = [], state }: { record?: Record<string, unknown>; changedFields?: string[]; state?: "before" | "after" | "removed" }) {
   const body = recordBody(record);
   if (!body) return <p className="empty-record">No record at this boundary.</p>;
   return (
     <dl className="record-property-grid">
-      {Object.entries(body).slice(0, 12).map(([key, value]) => (
-        <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>
-      ))}
+      {Object.entries(body).map(([key, value]) => {
+        const changed = state === "removed" || changedFields.includes(key);
+        return <div key={key} data-change={changed ? state : undefined}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>;
+      })}
     </dl>
   );
 }
@@ -71,8 +72,8 @@ function ComparisonDialog({ sample, open, onOpenChange }: { sample: StageCompari
               <span>{sample.reason || (sample.changed_fields?.length ? `Changed ${sample.changed_fields.join(", ")}` : "Record passed this boundary unchanged.")}</span>
             </div>
             <div className="comparison-columns">
-              {sample.before ? <section><span>Before</span><PropertyGrid record={sample.before} /></section> : null}
-              <section data-current="true"><span>{sample.before ? "After" : "Record"}</span><PropertyGrid record={sample.after} /></section>
+              {sample.before ? <section><span>Before</span><PropertyGrid record={sample.before} changedFields={sample.changed_fields} state={sample.outcome === "filtered" ? "removed" : "before"} /></section> : null}
+              <section data-current="true"><span>{sample.before ? "After" : "Record"}</span><PropertyGrid record={sample.after} changedFields={sample.changed_fields} state="after" /></section>
             </div>
             <details className="raw-disclosure"><summary>View source JSON</summary><pre>{JSON.stringify({ before: sample.before, after: sample.after }, null, 2)}</pre></details>
           </div>
@@ -89,7 +90,7 @@ export function StageComparisonView({ comparison, loading, error }: { comparison
   const samples = useMemo(() => comparison?.samples.filter((sample) => filter === "all" || sample.outcome === "filtered") ?? [], [comparison, filter]);
 
   if (!comparison && loading) return <div className="stage-loading" role="status"><i /><span>Reading this stage artifact...</span></div>;
-  if (!comparison) return <div className="empty-state"><strong>Stage artifact unavailable.</strong><span>{error || "Run the pipeline to create this snapshot."}</span></div>;
+  if (!comparison) return <div className="empty-state"><strong>Stage artifact unavailable.</strong><span>{error || "Add data to create an inspectable snapshot."}</span></div>;
 
   return (
     <div className="stage-records" data-loading={loading}>
@@ -101,12 +102,12 @@ export function StageComparisonView({ comparison, loading, error }: { comparison
         <table className="stage-record-table">
           <thead><tr><th>Record</th><th>What the data says</th><th>Result</th><th>Why</th><th><span className="sr-only">Inspect</span></th></tr></thead>
           <tbody>
-            {samples.map((sample) => {
+            {samples.map((sample, index) => {
               const record = sample.after ?? sample.before;
               const context = valueAt(record, ["kind", "type", "event_type", "status", "state"]);
               const reason = sample.reason || (sample.outcome === "input" ? "Captured as received" : sample.changed_fields?.length ? `Changed ${sample.changed_fields.slice(0, 3).join(", ")}` : "Passed unchanged");
               return (
-                <tr key={`${sample.record_id}-${sample.outcome}`} onClick={() => setSelected(sample)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelected(sample); }}>
+                <tr key={`${sample.record_id}-${sample.outcome}-${index}`} onClick={() => setSelected(sample)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelected(sample); }}>
                   <td><code>{sample.record_id}</code><small>{fieldCount(record)} fields</small></td>
                   <td><strong>{excerpt(record)}</strong>{context ? <small>{context.replaceAll("_", " ")}</small> : null}</td>
                   <td><span className="outcome-label" data-outcome={sample.outcome}>{sample.outcome === "filtered" ? <FunnelIcon /> : <CheckCircleIcon weight="fill" />}{outcomeLabel(sample.outcome)}</span></td>

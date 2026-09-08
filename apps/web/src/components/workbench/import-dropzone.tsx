@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { FileArrowUpIcon, LockKeyIcon } from "@phosphor-icons/react";
 import type { ActiveImport } from "./workspace-machine";
 import { stateLabel } from "./workspace-machine";
@@ -14,10 +14,7 @@ export function ImportDropzone({ active, disabled, onFiles }: {
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [ready, setReady] = useState(false);
   const progress = active && active.bytes > 0 ? Math.min(100, Math.round(active.uploaded / active.bytes * 100)) : 0;
-
-  useEffect(() => setReady(true), []);
 
   function receive(list: FileList | null) {
     const files = Array.from(list ?? []);
@@ -28,7 +25,7 @@ export function ImportDropzone({ active, disabled, onFiles }: {
     <div
       className="import-surface"
       data-active={dragging}
-      data-ready={ready}
+      data-ready="true"
       data-state={active?.state ?? "idle"}
       role="button"
       tabIndex={disabled ? -1 : 0}

@@ -30,12 +30,13 @@ type StoreConfig struct {
 }
 
 type ReviewEvent struct {
-	RecordID  string `json:"record_id"`
-	Previous  string `json:"previous"`
-	Decision  string `json:"decision"`
-	Note      string `json:"note,omitempty"`
-	Occurred  string `json:"occurred_at"`
-	ActorType string `json:"actor_type"`
+	RecordHash string `json:"record_hash,omitempty"`
+	RecordID   string `json:"record_id"`
+	Previous   string `json:"previous"`
+	Decision   string `json:"decision"`
+	Note       string `json:"note,omitempty"`
+	Occurred   string `json:"occurred_at"`
+	ActorType  string `json:"actor_type"`
 }
 
 type persistedState struct {
@@ -49,6 +50,7 @@ type persistedState struct {
 
 type Store struct {
 	mu           sync.RWMutex
+	runGate      sync.Mutex
 	cfg          StoreConfig
 	engine       Engine
 	workspace    Workspace
@@ -147,20 +149,44 @@ func (s *Store) ETag() string {
 }
 
 func (s *Store) ReviewQueue() (int, []EvidenceRecord) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	records := make([]EvidenceRecord, 0)
-	for _, record := range s.workspace.Records {
-		if record.Decision == "review" {
-			records = append(records, record)
-		}
-	}
-	return s.workspace.DecisionBreakdown.Review, records
+	total, records, _ := s.ReviewPage(context.Background(), 200)
+	return total, records
 }
 
 func (s *Store) UpdateReview(recordID string, update ReviewUpdate) (Workspace, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if update.Decision != "accepted" && update.Decision != "rejected" && update.Decision != "modified" {
+		return Workspace{}, ErrInvalidImport
+	}
+	row, lookupErr := s.findReviewRecordLocked(recordID)
+	if lookupErr == nil {
+		previous := row.Decision
+		if event, ok := matchingReview(row, latestReviews(s.reviewEvents)); ok {
+			previous = event.Decision
+		}
+		if previous == update.Decision && strings.TrimSpace(update.Note) == "" {
+			return cloneWorkspace(s.workspace), nil
+		}
+		events := append(append([]ReviewEvent(nil), s.reviewEvents...), ReviewEvent{
+			RecordID: recordID, RecordHash: reviewHash(row), Previous: previous, Decision: update.Decision,
+			Note: strings.TrimSpace(update.Note), Occurred: time.Now().UTC().Format(time.RFC3339Nano), ActorType: "local_reviewer",
+		})
+		fresh, err := s.projectReviewsLocked(cloneWorkspace(s.workspace), events)
+		if err != nil {
+			return Workspace{}, err
+		}
+		before, oldEvents := s.workspace, s.reviewEvents
+		s.workspace, s.reviewEvents = fresh, events
+		if err := s.persistLocked(); err != nil {
+			s.workspace, s.reviewEvents = before, oldEvents
+			return Workspace{}, err
+		}
+		return cloneWorkspace(fresh), nil
+	}
+	if !errors.Is(lookupErr, os.ErrNotExist) {
+		return Workspace{}, lookupErr
+	}
 	index := -1
 	for i := range s.workspace.Records {
 		if s.workspace.Records[i].ID == recordID {
@@ -189,7 +215,9 @@ func (s *Store) UpdateReview(recordID string, update ReviewUpdate) (Workspace, e
 	if err := s.persistLocked(); err != nil {
 		return Workspace{}, err
 	}
-	_ = s.writeReviewProjectionLocked()
+	if err := s.writeReviewProjectionLocked(); err != nil {
+		return Workspace{}, err
+	}
 	return cloneWorkspace(s.workspace), nil
 }
 
@@ -249,6 +277,12 @@ func (s *Store) StageBatch(
 }
 
 func (s *Store) Run(ctx context.Context) (RunResponse, error) {
+	return s.run(ctx, nil)
+}
+
+func (s *Store) run(ctx context.Context, onStage func(StageProgress)) (RunResponse, error) {
+	s.runGate.Lock()
+	defer s.runGate.Unlock()
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
@@ -267,7 +301,12 @@ func (s *Store) Run(ctx context.Context) (RunResponse, error) {
 	}
 	s.mu.Unlock()
 
-	err := s.engine.Run(ctx, runID)
+	var err error
+	if engine, ok := s.engine.(progressEngine); ok {
+		err = engine.RunWithProgress(ctx, runID, onStage)
+	} else {
+		err = s.engine.Run(ctx, runID)
+	}
 	finished := time.Now().UTC().Truncate(time.Second)
 
 	s.mu.Lock()
@@ -306,8 +345,11 @@ func (s *Store) Run(ctx context.Context) (RunResponse, error) {
 	oldEvents := s.workspace.RunEvents
 	previousBatches := append([]BatchSummary(nil), s.workspace.Batches...)
 	s.enrich(&fresh)
-	mergeMissingBatches(&fresh, previousBatches)
-	applyReviewOverrides(&fresh, s.reviewEvents)
+	mergeMissingBatches(&fresh, previousBatches, s.cfg.ArtifactsDir)
+	fresh, err = s.projectReviewsLocked(fresh, s.reviewEvents)
+	if err != nil {
+		return RunResponse{}, err
+	}
 	fresh.RunEvents = append([]RunEvent{{
 		RunID: runID, EventType: "COMPLETE", EventTime: finished.Format(time.RFC3339),
 		Job: fresh.Recipe.ID,
@@ -326,13 +368,16 @@ func (s *Store) Run(ctx context.Context) (RunResponse, error) {
 	return RunResponse{RunID: runID, State: "succeeded", StageCounts: counts}, nil
 }
 
-func mergeMissingBatches(workspace *Workspace, previous []BatchSummary) {
+func mergeMissingBatches(workspace *Workspace, previous []BatchSummary, artifactsDir string) {
 	present := make(map[string]struct{}, len(workspace.Batches))
 	for _, batch := range workspace.Batches {
 		present[batch.ID] = struct{}{}
 	}
 	for _, batch := range previous {
 		if _, exists := present[batch.ID]; exists {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(artifactsDir, "staged", batch.ID+".jsonl")); err != nil {
 			continue
 		}
 		workspace.Batches = append(workspace.Batches, batch)

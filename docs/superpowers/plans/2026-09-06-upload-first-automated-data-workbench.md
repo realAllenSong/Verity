@@ -10,6 +10,10 @@
 
 **Spec:** docs/product/upload-first-workbench-spec.md
 
+## Execution checkpoint (2026-09-08)
+
+This remains the original approved target plan. Unchecked steps below must not be interpreted as completed. The core upload-first workflow, all-Go streaming engine, inspection cache, review-to-export revisions, REST/CLI/MCP, and local million-row gate are now implemented. The [spec checkpoint](../../product/upload-first-workbench-spec.md#implementation-checkpoint-2026-09-08) records concrete differences and remaining work. In particular, tusd/TanStack Virtual, distributed recovery, browser cancellation, workflow-gating pauses, custom recipe editing, and the full resilience/soak matrix are not claimed as delivered. The [verification report](../../verification.md) records the actual acceptance runs.
+
 ## Global Constraints
 
 - The first screen's primary action is **Drop data or choose files**.

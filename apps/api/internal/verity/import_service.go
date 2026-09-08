@@ -284,7 +284,26 @@ func (s *Store) OutputPath(outputID string) (string, OutputSummary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var selected OutputSummary
-	for _, output := range s.workspace.Outputs {
+	workspace := s.workspace
+	directory := filepath.Join(s.cfg.ArtifactsDir, workspace.RunID)
+	parts := strings.Split(outputID, "__")
+	if len(parts) == 2 || len(parts) == 3 {
+		for _, part := range parts {
+			if part == "" || part == "." || part == ".." || safeRecordID(part) != part {
+				return "", OutputSummary{}, ErrNotFound
+			}
+		}
+		directory = filepath.Join(s.cfg.ArtifactsDir, parts[1])
+		if len(parts) == 3 {
+			directory = filepath.Join(directory, parts[2])
+		}
+		archived, err := readWorkspace(filepath.Join(directory, "workspace.json"))
+		if err != nil {
+			return "", OutputSummary{}, ErrNotFound
+		}
+		workspace = archived
+	}
+	for _, output := range workspace.Outputs {
 		if output.ID == outputID {
 			selected = output
 			break
@@ -297,7 +316,7 @@ func (s *Store) OutputPath(outputID string) (string, OutputSummary, error) {
 	if strings.Contains(strings.ToLower(selected.Name), "decision") {
 		filename = "decisions.jsonl"
 	}
-	path := filepath.Join(s.cfg.ArtifactsDir, s.workspace.RunID, filename)
+	path := filepath.Join(directory, filename)
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", OutputSummary{}, ErrNotFound
@@ -346,7 +365,9 @@ func (s *Store) processImport(jobID, sourcePath string) {
 	}
 
 	s.updateJobState(jobID, JobRunning, "stage_started", "raw", "Pipeline started.")
-	response, err := s.Run(context.Background())
+	response, err := s.run(context.Background(), func(progress StageProgress) {
+		s.recordStageProgress(jobID, progress)
+	})
 	if err != nil {
 		s.failImport(jobID, err)
 		return
@@ -358,6 +379,12 @@ func (s *Store) processImport(jobID, sourcePath string) {
 	job.UpdatedAt = time.Now().UTC().Truncate(time.Second).Format(time.RFC3339)
 	if len(s.workspace.Outputs) > 0 {
 		job.OutputID = s.workspace.Outputs[0].ID
+		for _, output := range s.workspace.Outputs {
+			if output.Format == "parquet" && !strings.Contains(strings.ToLower(output.Name), "decision") {
+				job.OutputID = output.ID
+				break
+			}
+		}
 	}
 	s.jobs[jobID] = job
 	item = s.imports[job.ImportID]
@@ -365,7 +392,9 @@ func (s *Store) processImport(jobID, sourcePath string) {
 	item.FinishedAt = job.UpdatedAt
 	s.imports[item.ImportID] = item
 	for _, stage := range s.workspace.Stages {
-		s.appendJobEventLocked(jobID, "stage_committed", stage.ID, stage.Count, stage.InputCount, stage.Label+" committed.")
+		if !s.hasStageEventLocked(jobID, stage.ID) {
+			s.appendJobEventLocked(jobID, "stage_committed", stage.ID, stage.Count, stage.InputCount, stage.Label+" committed.")
+		}
 	}
 	if s.workspace.DecisionBreakdown.Review > 0 {
 		s.appendJobEventLocked(jobID, "review_required", "review", s.workspace.DecisionBreakdown.Review, s.workspace.DecisionBreakdown.Review, "Some ambiguous records are ready for human review.")
@@ -373,6 +402,29 @@ func (s *Store) processImport(jobID, sourcePath string) {
 	s.appendJobEventLocked(jobID, "output_ready", "curated", s.workspace.DecisionBreakdown.Accepted, s.workspace.Dataset.RecordCount, "Curated output is ready.")
 	_ = s.persistLocked()
 	s.mu.Unlock()
+}
+
+func (s *Store) recordStageProgress(jobID string, progress StageProgress) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.jobs[jobID]; !exists || s.hasStageEventLocked(jobID, progress.StageID) {
+		return
+	}
+	label := map[string]string{
+		"raw": "Raw", "normalize": "Normalize", "privacy": "Privacy", "quality": "Quality",
+		"signals": "Extract", "review": "Review", "curated": "Ready",
+	}[progress.StageID]
+	s.appendJobEventLocked(jobID, "stage_committed", progress.StageID, progress.Count, progress.InputCount, label+" committed.")
+	_ = s.persistLocked()
+}
+
+func (s *Store) hasStageEventLocked(jobID, stageID string) bool {
+	for _, event := range s.jobEvents[jobID] {
+		if event.EventType == "stage_committed" && event.StageID == stageID {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) canonicalizeImport(ctx context.Context, item ImportSummary, sourcePath string) (BatchSummary, InputFormat, error) {

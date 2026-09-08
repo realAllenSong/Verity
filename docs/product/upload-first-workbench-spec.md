@@ -1,7 +1,20 @@
 # Upload-first automated workbench product spec
 
-**Status:** Draft for product approval  
+**Status:** Approved direction; core flow implemented, remaining criteria tracked below
+
 **Date:** 2026-09-06
+
+## Implementation checkpoint (2026-09-08)
+
+The upload → automatic processing → inspect → review → download loop is implemented and tested. This document also contains target behavior that is not yet implemented; it is not a completion certificate.
+
+- Delivered: streaming formats, offset-based resumable uploads, automatic jobs, committed stage-event replay, bounded comparison samples, full-stage pagination, immutable review-output revisions, REST/CLI/MCP, local 100k/1m tests, and a generic Kubernetes base.
+- Deliberate implementation choices: a documented custom HEAD/PATCH upload protocol instead of tusd; 25-row pagination instead of a virtualization dependency. It is not tus-compatible. bbolt, parquet-go, the official MCP SDK, and Radix are reused directly.
+- Still open: browser pause/cancel controls and job recovery after API restart; pause/resume workflow gates for schema/format ambiguity; progress restoration after browser reload; live inspection of a not-yet-completed run; paste/source-connection entry points; editable/custom recipe UI; full-dataset search; enterprise authorization and Curvatus runtime validation.
+- Human review currently branches: already accepted records become downloadable immediately; uncertain records remain excluded until reviewed. Decisions create a new immutable result revision. Automated stage counts remain the original run snapshot.
+- General envelope/format support does not make the bundled domain recipe universal. The current recipe extracts workflow signals. Other data domains need their own Go operators; no model training or external model calls happen automatically.
+
+See [verification](../verification.md) for executed tests and [production readiness](../production-readiness.md) for deployment boundaries.
 
 ## Product promise
 
@@ -161,4 +174,3 @@ and resulting output lineage.
 6. Every stage exposes a readable summary, bounded row view, before/after explanation, and decision lineage.
 7. The REST API, Go CLI, MCP tools, and web app can each complete the same import-to-output flow.
 8. No primary navigation item is required to complete the first-run workflow.
-

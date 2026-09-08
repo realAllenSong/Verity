@@ -17,6 +17,16 @@ type Engine interface {
 	Compare(ctx context.Context, runID, stageID string, limit int) ([]StageComparisonSample, error)
 }
 
+type StageProgress struct {
+	StageID    string
+	Count      int
+	InputCount int
+}
+
+type progressEngine interface {
+	RunWithProgress(context.Context, string, func(StageProgress)) error
+}
+
 // LocalEngine runs the complete data plane in-process. It is the dependency-free
 // default for laptops, CI, and single-workspace deployments.
 type LocalEngine struct {
@@ -26,14 +36,19 @@ type LocalEngine struct {
 }
 
 func (e LocalEngine) Run(ctx context.Context, runID string) error {
+	return e.RunWithProgress(ctx, runID, nil)
+}
+
+func (e LocalEngine) RunWithProgress(ctx context.Context, runID string, onStage func(StageProgress)) error {
 	rawDir := e.RawDir
 	if rawDir == "" {
 		rawDir = filepath.Join(e.RepoRoot, "sample_data", "raw")
 	}
 	_, err := RunPipeline(ctx, PipelineConfig{
-		RunID:       runID,
-		RawDirs:     []string{rawDir, filepath.Join(e.ArtifactsDir, "staged")},
-		ArtifactDir: filepath.Join(e.ArtifactsDir, runID),
+		RunID:            runID,
+		RawDirs:          []string{rawDir, filepath.Join(e.ArtifactsDir, "staged")},
+		ArtifactDir:      filepath.Join(e.ArtifactsDir, runID),
+		OnStageCommitted: onStage,
 	})
 	return err
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -34,10 +35,16 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeEngine()
+	maxUploadBytes, err := configuredByteLimit("VERITY_MAX_UPLOAD_BYTES", 5<<30)
+	if err != nil {
+		logger.Error("configure upload limit", "error", err)
+		os.Exit(1)
+	}
 	store, err := verity.NewStore(verity.StoreConfig{
 		RepoRoot: repoRoot, SeedWorkspace: seed,
-		StatePath:    filepath.Join(artifacts, "control", "state.json"),
-		ArtifactsDir: artifacts,
+		StatePath:      filepath.Join(artifacts, "control", "state.json"),
+		ArtifactsDir:   artifacts,
+		MaxUploadBytes: maxUploadBytes,
 	}, engine)
 	if err != nil {
 		logger.Error("initialize store", "error", err)
@@ -145,6 +152,18 @@ func env(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func configuredByteLimit(name string, fallback int64) (int64, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed < 1 {
+		return 0, fmt.Errorf("%s must be a positive integer number of bytes", name)
+	}
+	return parsed, nil
 }
 
 func origins(raw string) map[string]struct{} {

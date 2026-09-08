@@ -21,7 +21,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "until curl -fsS http://127.0.0.1:8100/ready >/dev/null; do sleep 0.1; done; curl -fsS -X POST http://127.0.0.1:8100/api/v1/runs >/dev/null; VERITY_API_URL=http://127.0.0.1:8100 NEXT_PUBLIC_API_URL=http://127.0.0.1:8100 npm run build && VERITY_API_URL=http://127.0.0.1:8100 NEXT_PUBLIC_API_URL=http://127.0.0.1:8100 npm run start -- --hostname 127.0.0.1 --port 3100",
+      command: "until curl -fsS http://127.0.0.1:8100/ready >/dev/null; do sleep 0.1; done; curl -fsS -X POST http://127.0.0.1:8100/api/v1/runs >/dev/null; VERITY_API_URL=http://127.0.0.1:8100 NEXT_PUBLIC_API_URL=http://127.0.0.1:8100 npm run build && mkdir -p .next/standalone/apps/web/.next && cp -R .next/static .next/standalone/apps/web/.next/static && HOSTNAME=127.0.0.1 PORT=3100 VERITY_API_URL=http://127.0.0.1:8100 NEXT_PUBLIC_API_URL=http://127.0.0.1:8100 node .next/standalone/apps/web/server.js",
       url: "http://127.0.0.1:3100",
       reuseExistingServer: false,
       timeout: 120_000,

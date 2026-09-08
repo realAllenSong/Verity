@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import {
-  CaretDownIcon,
   CheckCircleIcon,
   ClockCounterClockwiseIcon,
   DotsThreeIcon,
@@ -11,37 +10,27 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { DropdownMenu } from "@radix-ui/themes";
-import type { Decision, ImportSummary, JobSummary, WorkspaceData } from "@/lib/contracts";
+import type { Decision, EvidenceRecord, ImportSummary, JobEvent, JobSummary, WorkspaceData } from "@/lib/contracts";
 import { ImportDropzone } from "./import-dropzone";
 import { JobProgress } from "./job-progress";
 import type { ActiveImport } from "./workspace-machine";
 import { screenState } from "./workspace-machine";
 import { PrivacyNote, ResultAction, ReviewDialog, WorkspaceView } from "./workspace-view";
+import { WorkspaceDetails, type DetailView } from "./workspace-details";
 
 const chunkBytes = 8 * 1024 * 1024;
 
 type Notice = { tone: "success" | "error"; message: string } | null;
-
-function updateLocalDecision(workspace: WorkspaceData, recordId: string, decision: Decision) {
-  const previous = workspace.records.find((item) => item.id === recordId)?.decision;
-  const breakdown = { ...workspace.decision_breakdown };
-  if (previous === "review") breakdown.review = Math.max(0, breakdown.review - 1);
-  if (previous === "accepted" || previous === "modified") breakdown.accepted = Math.max(0, breakdown.accepted - 1);
-  if (previous === "rejected") breakdown.rejected = Math.max(0, breakdown.rejected - 1);
-  if (decision === "accepted" || decision === "modified") breakdown.accepted += 1;
-  if (decision === "rejected") breakdown.rejected += 1;
-  return {
-    ...workspace,
-    decision_breakdown: breakdown,
-    records: workspace.records.map((item) => item.id === recordId ? { ...item, decision } : item),
-  };
-}
 
 export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceData }) {
   const [workspace, setWorkspace] = useState(initialWorkspace);
   const [selectedStageId, setSelectedStageId] = useState("raw");
   const [activeImport, setActiveImport] = useState<ActiveImport>();
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewRecords, setReviewRecords] = useState<EvidenceRecord[]>([]);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [details, setDetails] = useState<DetailView | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   const busy = activeImport?.state === "uploading" || activeImport?.state === "processing";
@@ -55,26 +44,33 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
 
   async function waitForJob(job: JobSummary, current: ActiveImport) {
     if (!apiUrl) return;
-    const deadline = Date.now() + 120_000;
     let latest = job;
-    while (Date.now() < deadline) {
-      const response = await fetch(`${apiUrl}${job.status_url}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Processing status is unavailable.");
-      latest = await response.json() as JobSummary;
-      const state = screenState(latest);
-      setActiveImport({ ...current, uploaded: current.bytes, state, job: latest, error: latest.error });
-      if (latest.state === "succeeded") {
-        await refreshWorkspace();
-        setSelectedStageId("raw");
-        setNotice({ tone: "success", message: "Result ready. Every stage can now be inspected." });
-        return;
+    const events = typeof EventSource === "undefined" ? undefined : new EventSource(`${apiUrl}${job.events_url}`);
+    events?.addEventListener("stage_committed", (message) => {
+      const event = JSON.parse((message as MessageEvent<string>).data) as JobEvent;
+      setActiveImport((active) => active ? { ...active, stage: event.stage_id } : active);
+    });
+    try {
+      while (true) {
+        const response = await fetch(`${apiUrl}${job.status_url}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Processing status is unavailable.");
+        latest = await response.json() as JobSummary;
+        const state = screenState(latest);
+        setActiveImport((active) => ({ ...current, uploaded: current.bytes, stage: active?.stage, state, job: latest, error: latest.error }));
+        if (latest.state === "succeeded") {
+          await refreshWorkspace();
+          setSelectedStageId("raw");
+          setNotice({ tone: "success", message: "Result ready. Every stage can now be inspected." });
+          return;
+        }
+        if (latest.state === "failed" || latest.state === "canceled") {
+          throw new Error(latest.error || "Processing failed. The previous result is unchanged.");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
-      if (latest.state === "failed" || latest.state === "canceled") {
-        throw new Error(latest.error || "Processing failed. The previous result is unchanged.");
-      }
-      await new Promise((resolve) => setTimeout(resolve, 350));
+    } finally {
+      events?.close();
     }
-    throw new Error("Processing is still running. You can safely return to this workspace later.");
   }
 
   async function uploadFile(file: File) {
@@ -130,21 +126,37 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
     }
   }
 
-  function changeDecision(recordId: string, decision: Decision) {
-    const before = workspace;
-    setWorkspace((current) => updateLocalDecision(current, recordId, decision));
-    if (!apiUrl) return;
-    void fetch(`${apiUrl}/api/v1/reviews/${recordId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision, note: "" }),
-    }).then(async (response) => {
-      if (!response.ok) throw new Error();
+  async function loadReviews() {
+    if (!apiUrl) throw new Error("Start the API to review records.");
+    const response = await fetch(`${apiUrl}/api/v1/review-queue`, { cache: "no-store" });
+    if (!response.ok) throw new Error("The review queue could not be loaded.");
+    const queue = await response.json() as { records: EvidenceRecord[] };
+    setReviewRecords(queue.records);
+  }
+
+  async function openReview() {
+    setReviewOpen(true);
+    setReviewBusy(true);
+    setReviewError("");
+    try { await loadReviews(); } catch (error) { setReviewError((error as Error).message); }
+    finally { setReviewBusy(false); }
+  }
+
+  async function changeDecision(recordId: string, decision: Decision) {
+    if (!apiUrl || reviewBusy) return;
+    setReviewBusy(true);
+    setReviewError("");
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/reviews/${encodeURIComponent(recordId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, note: decision === "accepted" ? "Accepted after source review in the workbench." : "Excluded after source review in the workbench." }),
+      });
+      if (!response.ok) throw new Error("The review decision could not be saved. Try again.");
       setWorkspace(await response.json() as WorkspaceData);
-    }).catch(() => {
-      setWorkspace(before);
-      setNotice({ tone: "error", message: "The review decision could not be saved." });
-    });
+      await loadReviews();
+    } catch (error) { setReviewError((error as Error).message); }
+    finally { setReviewBusy(false); }
   }
 
   return (
@@ -152,14 +164,14 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
       <header className="workspace-topbar">
         <div className="brand-lockup"><span className="brand-mark">V</span><strong>VERITY</strong></div>
         <div className="topbar-tools">
-          <button className="workspace-switcher" type="button">{workspace.dataset.name}<CaretDownIcon /></button>
-          <span className="local-state"><i />Local</span>
+          <span className="workspace-switcher">{workspace.dataset.name}</span>
+          <span className="local-state">Self-hosted</span>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger><button className="icon-button" type="button" aria-label="Workspace options"><DotsThreeIcon /></button></DropdownMenu.Trigger>
             <DropdownMenu.Content align="end">
-              <DropdownMenu.Item><ClockCounterClockwiseIcon />Run history</DropdownMenu.Item>
-              <DropdownMenu.Item><GearSixIcon />Workflow settings</DropdownMenu.Item>
-              <DropdownMenu.Item><PlugsConnectedIcon />Automation</DropdownMenu.Item>
+              <DropdownMenu.Item onSelect={() => setDetails("Run history")}><ClockCounterClockwiseIcon />Run history</DropdownMenu.Item>
+              <DropdownMenu.Item onSelect={() => setDetails("Workflow details")}><GearSixIcon />Workflow details</DropdownMenu.Item>
+              <DropdownMenu.Item onSelect={() => setDetails("Automation")}><PlugsConnectedIcon />Automation</DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Root>
         </div>
@@ -170,7 +182,7 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
         <header className="workspace-intro">
           <div><h1>See every transformation.</h1><p>Drop in raw data. Verity prepares it and shows exactly what changed.</p></div>
           <div className="intro-actions">
-            {workspace.decision_breakdown.review > 0 ? <button className="review-button" type="button" onClick={() => setReviewOpen(true)}>Review {workspace.decision_breakdown.review} items</button> : null}
+            {workspace.decision_breakdown.review > 0 ? <button className="review-button" type="button" onClick={() => void openReview()}>Review {workspace.decision_breakdown.review} items</button> : null}
             <ResultAction workspace={workspace} apiUrl={apiUrl} />
           </div>
         </header>
@@ -192,10 +204,14 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
       <ReviewDialog
         open={reviewOpen}
         onOpenChange={setReviewOpen}
-        records={workspace.records.filter((record) => record.decision === "review")}
+        records={reviewRecords}
         total={workspace.decision_breakdown.review}
+        busy={reviewBusy}
+        error={reviewError}
+        onRetry={() => void openReview()}
         onDecision={changeDecision}
       />
+      <WorkspaceDetails view={details} workspace={workspace} apiUrl={apiUrl} onClose={() => setDetails(null)} />
     </main>
   );
 }

@@ -28,6 +28,17 @@ export interface JobSummary {
   error?: string;
 }
 
+export interface JobEvent {
+  job_id: string;
+  sequence: number;
+  event_type: string;
+  stage_id?: string;
+  completed_records?: number;
+  total_records?: number;
+  timestamp: string;
+  message?: string;
+}
+
 export interface DatasetSummary {
   id: string;
   name: string;

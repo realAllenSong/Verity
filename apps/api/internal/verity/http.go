@@ -254,7 +254,11 @@ func (s *HTTPServer) stageBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) reviewQueue(w http.ResponseWriter, r *http.Request) {
-	total, records := s.store.ReviewQueue()
+	total, records, err := s.store.ReviewPage(r.Context(), 50)
+	if err != nil {
+		s.problem(w, r, http.StatusInternalServerError, "review_unavailable", "The review queue could not be read")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"count": total, "returned": len(records), "records": records,
 	})
@@ -342,8 +346,14 @@ func (s *HTTPServer) downloadOutput(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, http.StatusInternalServerError, "output_unavailable", "Output could not be opened")
 		return
 	}
+	checksum, err := fileSHA256(path)
+	if err != nil {
+		s.problem(w, r, http.StatusInternalServerError, "output_unavailable", "Output checksum could not be verified")
+		return
+	}
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filepath.Base(path)+`"`)
 	w.Header().Set("X-Verity-Output-ID", output.ID)
+	w.Header().Set("X-Verity-SHA256", checksum)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeFile(w, r, path)
 }
@@ -469,7 +479,7 @@ func (s *HTTPServer) withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Request-ID, Upload-Offset, Upload-Length, Last-Event-ID")
-			w.Header().Set("Access-Control-Expose-Headers", "ETag, Location, Upload-Offset, Upload-Length, Upload-State, X-Request-ID, X-Verity-Output-ID")
+			w.Header().Set("Access-Control-Expose-Headers", "ETag, Location, Upload-Offset, Upload-Length, Upload-State, X-Request-ID, X-Verity-Output-ID, X-Verity-SHA256")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, PATCH, OPTIONS")
 		}
 		next.ServeHTTP(w, r)

@@ -1,5 +1,7 @@
 "use client";
 
+import { RecordBrowser } from "./record-browser";
+
 import { useEffect, useState } from "react";
 import {
   CheckCircleIcon,
@@ -44,7 +46,7 @@ export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
   }, [apiUrl, comparisonKey, selectedID]);
 
   if (!selected) return null;
-  const filtered = Math.max(0, selected.input_count - selected.count);
+  const filtered = ["review", "curated"].includes(selected.id) ? 0 : Math.max(0, selected.input_count - selected.count);
   return (
     <>
       <section className="flow-section" aria-label="Data pipeline">
@@ -67,16 +69,20 @@ export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
             {filtered > 0 ? <div><dt>Removed</dt><dd>{filtered.toLocaleString()}</dd></div> : null}
           </dl>
         </header>
-        <StageComparisonView comparison={comparison} loading={loading} error={error} />
+        <StageComparisonView key={selectedID} comparison={comparison} loading={loading} error={error} />
+        {apiUrl ? <div className="browse-stage-action"><RecordBrowser key={comparisonKey} stage={selectedID} apiUrl={apiUrl} /></div> : null}
       </section>
     </>
   );
 }
 
-export function ReviewDialog({ records, total, open, onOpenChange, onDecision }: {
+export function ReviewDialog({ records, total, open, busy, error, onRetry, onOpenChange, onDecision }: {
   records: EvidenceRecord[];
   total: number;
   open: boolean;
+  busy: boolean;
+  error: string;
+  onRetry: () => void;
   onOpenChange: (open: boolean) => void;
   onDecision: (recordId: string, decision: Decision) => void;
 }) {
@@ -87,17 +93,18 @@ export function ReviewDialog({ records, total, open, onOpenChange, onDecision }:
           <div><Dialog.Title>Review uncertain records</Dialog.Title><Dialog.Description>{total} records need a judgment call.</Dialog.Description></div>
           <Dialog.Close><button className="icon-button" type="button" aria-label="Close"><XIcon /></button></Dialog.Close>
         </div>
+        {error ? <div className="review-message" role="alert">{error}<button type="button" onClick={onRetry}>Retry</button></div> : null}
         <div className="review-cards">
           {records.slice(0, 8).map((record) => (
             <article className="review-card" key={record.id}>
-              <div><code>{record.id}</code><strong>{record.extracted_signal}</strong><p>{record.reason}</p></div>
-              <span>{Math.round(record.confidence * 100)}%</span>
-              <button type="button" onClick={() => onDecision(record.id, "accepted")}><CheckCircleIcon />Accept</button>
+              <div><code>{record.id}</code><strong>{record.extracted_signal}</strong><p>{record.reason}</p><details><summary>Inspect evidence</summary><p>{record.raw_event}</p><small>Rule confidence: {Math.round(record.confidence * 100)}%. This is a heuristic, not a calibrated probability.</small></details></div>
+              <div className="review-actions"><button type="button" disabled={busy} onClick={() => onDecision(record.id, "accepted")}><CheckCircleIcon />Accept</button><button type="button" disabled={busy} onClick={() => onDecision(record.id, "rejected")}>Exclude</button></div>
             </article>
           ))}
-          {!records.length ? <div className="review-empty"><CheckCircleIcon weight="fill" /><strong>Review complete</strong></div> : null}
+          {!records.length && !error ? <div className="review-empty"><strong>{busy ? "Loading review queue..." : total === 0 ? "Review complete" : "No records loaded"}</strong></div> : null}
+          {records.length > 0 ? <p className="review-page-note">Showing {Math.min(8, records.length)} of {total}. Next records appear as you review.</p> : null}
         </div>
-        <footer className="review-privacy"><ShieldCheckIcon /><span>Only approved projections appear here. Raw source content stays local.</span></footer>
+        <footer className="review-privacy"><ShieldCheckIcon /><span>Decisions create a new download snapshot. Earlier snapshots stay unchanged.</span></footer>
       </Dialog.Content>
     </Dialog.Root>
   );

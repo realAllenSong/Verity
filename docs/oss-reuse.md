@@ -10,6 +10,8 @@ schedulers, metadata stores, and UIs.
 | --- | --- | --- |
 | Go `net/http` | API, lifecycle, middleware, and Airbyte adapter | service boundary |
 | parquet-go | pure-Go typed Parquet publication | curated analytics/ML artifact only |
+| bbolt | disk-backed exact record-ID deduplication | one run-scoped index |
+| Official MCP Go SDK | stdio tool protocol and schemas | same REST client as CLI |
 | Temporal Go SDK | optional durable workflow and worker | orchestration adapter |
 | Radix Themes | accessible dialogs and menus | UI primitives, visually customized |
 | Phosphor Icons | interaction symbols | visual assets |
@@ -30,6 +32,8 @@ without introducing Python or CGO.
 | Airbyte | managed source connectors and incremental sync | API adapter only; Airbyte stays outside the default runtime |
 
 ## Deliberately optional or deferred
+
+Uploads currently use Verity's custom offset-based HEAD/PATCH protocol, not tusd or tus-js-client. The UI shows bounded samples and 25-row server pages, not TanStack virtualization. These are explicit deviations from the initial plan, not integrations we claim to have shipped.
 
 - Airbyte Cloud or self-managed for sources that justify its operational footprint
 - Temporal Cloud or self-hosted Temporal for durable distributed execution

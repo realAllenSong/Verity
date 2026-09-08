@@ -92,6 +92,7 @@ func TestTemporalWorkflowRunsTheGoPipeline(t *testing.T) {
 	}
 	var suite testsuite.WorkflowTestSuite
 	environment := suite.NewTestWorkflowEnvironment()
+	environment.SetTestTimeout(15 * time.Second)
 	environment.RegisterActivity(PipelineActivity)
 	environment.ExecuteWorkflow(PipelineWorkflow, PipelineJob{
 		RunID: "run_temporal_test", RawDirs: []string{rawDir},

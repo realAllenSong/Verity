@@ -1001,7 +1001,7 @@
       "get": {
         "operationId": "download_output",
         "parameters": [{"in": "path", "name": "output_id", "required": true, "schema": {"type": "string"}}],
-        "responses": {"200": {"content": {"application/octet-stream": {"schema": {"format": "binary", "type": "string"}}}, "description": "Output artifact"}},
+        "responses": {"200": {"content": {"application/octet-stream": {"schema": {"format": "binary", "type": "string"}}}, "description": "Output artifact", "headers": {"X-Verity-SHA256": {"description": "SHA-256 digest of the downloaded artifact", "schema": {"type": "string"}}}}},
         "summary": "Download Output"
       }
     },

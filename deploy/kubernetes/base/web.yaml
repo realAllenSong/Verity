@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: verity-web
+  labels: { app.kubernetes.io/name: verity, app.kubernetes.io/component: web }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/name: verity, app.kubernetes.io/component: web }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: verity, app.kubernetes.io/component: web }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: web
+          image: verity-web:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 3000 }]
+          env:
+            - { name: VERITY_API_URL, value: http://verity-api:8000 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          volumeMounts:
+            - { name: temp, mountPath: /tmp }
+            - { name: cache, mountPath: /app/apps/web/.next/cache }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 3
+      volumes:
+        - name: temp
+          emptyDir: { sizeLimit: 128Mi }
+        - name: cache
+          emptyDir: { sizeLimit: 256Mi }

@@ -8,21 +8,23 @@ The repository is dataset-first. Inputs arrive as independent batches of generic
 
 ## What works now
 
-- 3,842 deterministic, deliberately noisy demo records across six traceable batches
+- resumable streaming imports for CSV, TSV, JSON, JSONL, NDJSON, Parquet, and gzip variants
+- deterministic 10,000-row cross-format fixtures plus generated 100,000 and 1,000,000-row load profiles
 - versioned normalization, privacy, quality, extraction, review, and publication stages
 - atomic JSONL stage snapshots, CSV and Parquet exports, and JSONL decision lineage
-- a persistent human review loop for uncertain decisions
-- complete Pipeline, Data, Recipes, Runs, Review, and Outputs workspaces
+- a persistent human review loop for uncertain decisions and resumable stage-progress events
+- one upload-first workspace with automatic execution and contextual review
 - per-stage artifact comparisons showing representative input, output, changed fields, and filtering reasons
-- local JSON, JSONL, and CSV batch staging with checksums and idempotent retries
+- disk-backed deduplication, bounded-memory stage execution, cursor pagination, and checksummed outputs
 - one Go service for the control plane and in-process data plane, with strict requests, atomic local state and artifacts, ETags, readiness, optional bearer auth, structured errors, request IDs, access logs, and graceful shutdown
 - checked-in JSON Schema and OpenAPI contracts
+- API-backed Go CLI and official-SDK MCP server for automation
 - a native optional Temporal workflow/worker for durable execution
 - an optional Airbyte HTTP adapter for triggering and tracking managed ingestion jobs
 
 The demo funnel is reproducible: `3,842 raw -> 3,611 normalized -> 3,276 privacy-safe -> 2,914 quality-passed -> 1,086 extracted -> 42 review + 1,044 ready`.
 
-This is a robust local reference product, not an enterprise GA claim. Production connectors, SSO/RBAC, managed secrets, tenant isolation, distributed durable execution, retention enforcement, and scale/security testing remain explicit next phases. See [production readiness](docs/production-readiness.md).
+This is a tested single-workspace reference product, not an enterprise GA claim. The bundled workflow-signal recipe is an example domain implementation, not a universal cleaner. Browser cancellation/recovery, configurable recipes, production connectors, SSO/RBAC, managed secrets, tenant isolation, distributed recovery, and retention enforcement remain open. See the [implementation checkpoint](docs/product/upload-first-workbench-spec.md#implementation-checkpoint-2026-09-08) and [production readiness](docs/production-readiness.md).
 
 ## Run locally
 
@@ -44,11 +46,12 @@ Open `http://127.0.0.1:3000`. The web app uses the checked-in synthetic snapshot
 
 To exercise the complete white-box flow:
 
-1. Open **Data**, choose **Add data**, and upload `sample_data/examples/noisy-workflow-events.json`.
-2. Confirm the raw preview, then choose **Stage batch** and **Done**.
-3. Return to **Pipeline** and choose **Run pipeline**.
-4. Open Raw, Normalize, Privacy, Quality, Extract, Review, and Ready in order. Each stage reads the current run artifact and shows representative records, transformations, and removal reasons.
-5. Click any record to compare its fields before and after the selected boundary. Use **Filtered out** when available to isolate rejected examples.
+1. Drop `sample_data/examples/noisy-workflow-events.csv` on the first screen, or click the same surface to choose it.
+2. Upload and the default workflow start automatically. No separate run action is required.
+3. Select Raw, Normalize, Privacy, Quality, Extract, Review, and Ready to inspect bounded representative records at every boundary.
+4. Click a record for its before-and-after field view. Use **Filtered out** to isolate removed examples.
+5. Use **Browse all records** to page through the full selected stage, 25 records at a time.
+6. Resolve uncertain records from the contextual review button. Every decision publishes a new downloadable snapshot without overwriting earlier outputs.
 
 The sample deliberately contains duplicate IDs, schema aliases, sensitive values, malformed records, unsupported content, low-confidence signals, and accepted signals. It is safe synthetic data and is intended for hands-on validation.
 
@@ -63,6 +66,15 @@ Run the browser-level product flows with:
 ```bash
 npm run test:e2e --workspace @verity/web
 ```
+
+Run the same lifecycle without the UI:
+
+```bash
+cd apps/api
+go run ./cmd/verity import ../../sample_data/examples/noisy-workflow-events.csv --wait --output ../../ready.parquet
+```
+
+See [CLI](docs/cli.md), [MCP](docs/mcp.md), the [verification report](docs/verification.md), and the [Kubernetes/Curvatus handoff](deploy/kubernetes/README.md). A reproducible 100,000-row end-to-end load run is `make load`; the 1,000,000-row profile is `make stress`.
 
 Or start both services with Docker:
 
@@ -99,7 +111,7 @@ The Go service owns API behavior, state, idempotency, lifecycle, transformations
 
 - White-box by default: each stage exposes input, output, retention, operator version, checks, and decision reason.
 - Progressive disclosure: the first view answers what happened; schema, lineage, evidence, and configuration open on demand.
-- Local-first privacy: raw prompts, files, and message bodies remain local-only. Shareable layers contain approved derived signals and audit metadata.
+- Self-hosted storage: raw files remain on the machine running the API, not necessarily the browser's machine. Real-data deployments require access control and approved privacy policies.
 - Human judgment at uncertainty: low-confidence records branch to review instead of silently entering model data.
 - Portable contracts: producers and operators depend on schemas, not a source logo, language, or scheduler.
 

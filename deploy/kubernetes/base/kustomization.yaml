@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - api.yaml
+  - web.yaml
+  - services.yaml
+  - pvc.yaml
+configMapGenerator:
+  - name: verity-config
+    literals:
+      - allowed-origins=https://verity.example.internal
+generatorOptions:
+  disableNameSuffixHash: true

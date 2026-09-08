@@ -7,6 +7,8 @@ node_modules/
 coverage/
 playwright-report/
 test-results/
+output/
+bin/
 __pycache__/
 .pytest_cache/
 .ruff_cache/

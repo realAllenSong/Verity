@@ -25,9 +25,10 @@ import (
 const DemoRunID = "run_2026-08-29_0914"
 
 type PipelineConfig struct {
-	RunID       string
-	RawDirs     []string
-	ArtifactDir string
+	RunID            string
+	RawDirs          []string
+	ArtifactDir      string
+	OnStageCommitted func(StageProgress)
 }
 
 type dataRecord struct {
@@ -77,14 +78,14 @@ type decisionRecord struct {
 // curatedParquetRow is deliberately stable and narrow. Parquet is a published
 // analytics contract, not a dump of local-only payload or metadata fields.
 type curatedParquetRow struct {
-	EventID         string  `parquet:"event_id"`
-	BatchID         string  `parquet:"batch_id"`
-	OccurredAt      string  `parquet:"occurred_at"`
-	SignalType      string  `parquet:"signal_type"`
-	ExtractedSignal string  `parquet:"extracted_signal"`
-	Confidence      float64 `parquet:"confidence"`
-	QualityScore    float64 `parquet:"quality_score"`
-	Decision        string  `parquet:"decision"`
+	EventID         string  `parquet:"event_id" json:"event_id"`
+	BatchID         string  `parquet:"batch_id" json:"batch_id"`
+	OccurredAt      string  `parquet:"occurred_at" json:"occurred_at"`
+	SignalType      string  `parquet:"signal_type" json:"signal_type"`
+	ExtractedSignal string  `parquet:"extracted_signal" json:"extracted_signal"`
+	Confidence      float64 `parquet:"confidence" json:"confidence"`
+	QualityScore    float64 `parquet:"quality_score" json:"quality_score"`
+	Decision        string  `parquet:"decision" json:"decision"`
 }
 
 type signalRule struct {
@@ -114,65 +115,7 @@ var (
 )
 
 func RunPipeline(ctx context.Context, cfg PipelineConfig) (Workspace, error) {
-	if cfg.RunID == "" || cfg.ArtifactDir == "" {
-		return Workspace{}, errors.New("pipeline requires run and artifact identity")
-	}
-	if err := os.MkdirAll(cfg.ArtifactDir, 0o750); err != nil {
-		return Workspace{}, fmt.Errorf("create run artifacts: %w", err)
-	}
-	raw, err := loadEvents(ctx, cfg.RawDirs)
-	if err != nil {
-		return Workspace{}, err
-	}
-	normalized := normalize(raw)
-	privacyRows, privacyDecisions := privacyFilter(normalized, cfg.RunID)
-	qualityRows, qualityDecisions := qualityFilter(privacyRows, cfg.RunID)
-	signals, signalDecisions := extractSignals(qualityRows, cfg.RunID)
-	review, curated := splitSignals(signals)
-
-	if err := writeJSONLinesAtomic(filepath.Join(cfg.ArtifactDir, "raw.jsonl"), raw); err != nil {
-		return Workspace{}, fmt.Errorf("write raw artifact: %w", err)
-	}
-	stageRows := []struct {
-		name string
-		rows []pipelineRecord
-	}{
-		{"normalize", normalized}, {"privacy", privacyRows}, {"quality", qualityRows},
-		{"signals", signals}, {"review", review}, {"curated", curated},
-	}
-	for _, stage := range stageRows {
-		if err := ctx.Err(); err != nil {
-			return Workspace{}, err
-		}
-		if err := writeJSONLinesAtomic(filepath.Join(cfg.ArtifactDir, stage.name+".jsonl"), stage.rows); err != nil {
-			return Workspace{}, fmt.Errorf("write %s artifact: %w", stage.name, err)
-		}
-	}
-	decisions := append(append(privacyDecisions, qualityDecisions...), signalDecisions...)
-	if err := writeJSONLinesAtomic(filepath.Join(cfg.ArtifactDir, "decisions.jsonl"), decisions); err != nil {
-		return Workspace{}, fmt.Errorf("write decision lineage: %w", err)
-	}
-	if err := writeCuratedCSV(filepath.Join(cfg.ArtifactDir, "curated.csv"), curated); err != nil {
-		return Workspace{}, fmt.Errorf("write curated CSV: %w", err)
-	}
-	if err := writeCuratedParquet(filepath.Join(cfg.ArtifactDir, "curated.parquet"), curated); err != nil {
-		return Workspace{}, fmt.Errorf("write curated Parquet: %w", err)
-	}
-
-	workspace := buildWorkspace(raw, normalized, privacyRows, qualityRows, signals, cfg.RunID, cfg.ArtifactDir, len(decisions))
-	if err := writeJSONAtomic(filepath.Join(cfg.ArtifactDir, "workspace.json"), workspace); err != nil {
-		return Workspace{}, fmt.Errorf("write workspace projection: %w", err)
-	}
-	for _, stage := range workspace.Stages {
-		count, err := countJSONLines(filepath.Join(cfg.ArtifactDir, stage.ID+".jsonl"))
-		if err != nil {
-			return Workspace{}, err
-		}
-		if count != stage.Count {
-			return Workspace{}, fmt.Errorf("artifact count mismatch for %s: expected %d, got %d", stage.ID, stage.Count, count)
-		}
-	}
-	return workspace, nil
+	return runStreamingPipeline(ctx, cfg)
 }
 
 func loadEvents(ctx context.Context, directories []string) ([]dataRecord, error) {
@@ -242,33 +185,36 @@ func normalize(records []dataRecord) []pipelineRecord {
 	}
 	rows := make([]pipelineRecord, 0, len(order))
 	for _, id := range order {
-		record := deduplicated[id]
-		content := cleanSpace(footerPattern.ReplaceAllString(firstString(record.Payload, "content", "message", "body", "text"), " "))
-		metadata := cloneAnyMap(record.Metadata)
-		if record.IngestedAt != "" {
-			metadata["ingested_at"] = record.IngestedAt
-		}
-		if _, exists := metadata["evidence_count"]; !exists {
-			if evidenceCount := asInt(record.Payload["evidence_count"]); evidenceCount > 0 {
-				metadata["evidence_count"] = evidenceCount
-			}
-		}
-		if _, exists := metadata["sensitive_only"]; !exists && asBool(record.Payload["sensitive_only"]) {
-			metadata["sensitive_only"] = true
-		}
-		digest := sha256.Sum256([]byte(strings.ToLower(content)))
-		rows = append(rows, pipelineRecord{
-			EventID: record.RecordID, DatasetID: record.DatasetID, BatchID: record.BatchID,
-			Kind:       strings.ToLower(strings.TrimSpace(defaultString(firstString(record.Payload, "kind", "type", "event_type"), "unknown"))),
-			OccurredAt: firstString(record.Payload, "occurred_at", "timestamp", "created_at", "time"),
-			Actor:      firstString(record.Payload, "actor", "author", "owner"),
-			ThreadID:   firstString(record.Payload, "thread_id", "conversation_id", "ticket_id"),
-			Title:      cleanSpace(firstString(record.Payload, "title", "subject", "name")),
-			Content:    content, Status: firstString(record.Payload, "status", "state"), Metadata: metadata,
-			ContentFingerprint: hex.EncodeToString(digest[:8]),
-		})
+		rows = append(rows, normalizeRecord(deduplicated[id]))
 	}
 	return rows
+}
+
+func normalizeRecord(record dataRecord) pipelineRecord {
+	content := cleanSpace(footerPattern.ReplaceAllString(firstString(record.Payload, "content", "message", "body", "text"), " "))
+	metadata := cloneAnyMap(record.Metadata)
+	if record.IngestedAt != "" {
+		metadata["ingested_at"] = record.IngestedAt
+	}
+	if _, exists := metadata["evidence_count"]; !exists {
+		if evidenceCount := asInt(record.Payload["evidence_count"]); evidenceCount > 0 {
+			metadata["evidence_count"] = evidenceCount
+		}
+	}
+	if _, exists := metadata["sensitive_only"]; !exists && asBool(record.Payload["sensitive_only"]) {
+		metadata["sensitive_only"] = true
+	}
+	digest := sha256.Sum256([]byte(strings.ToLower(content)))
+	return pipelineRecord{
+		EventID: record.RecordID, DatasetID: record.DatasetID, BatchID: record.BatchID,
+		Kind:       strings.ToLower(strings.TrimSpace(defaultString(firstString(record.Payload, "kind", "type", "event_type"), "unknown"))),
+		OccurredAt: firstString(record.Payload, "occurred_at", "timestamp", "created_at", "time"),
+		Actor:      firstString(record.Payload, "actor", "author", "owner"),
+		ThreadID:   firstString(record.Payload, "thread_id", "conversation_id", "ticket_id"),
+		Title:      cleanSpace(firstString(record.Payload, "title", "subject", "name")),
+		Content:    content, Status: firstString(record.Payload, "status", "state"), Metadata: metadata,
+		ContentFingerprint: hex.EncodeToString(digest[:8]),
+	}
 }
 
 func firstString(values map[string]any, keys ...string) string {
@@ -284,84 +230,110 @@ func privacyFilter(rows []pipelineRecord, runID string) ([]pipelineRecord, []dec
 	output := make([]pipelineRecord, 0, len(rows))
 	var decisions []decisionRecord
 	for _, row := range rows {
-		if asBool(row.Metadata["sensitive_only"]) {
-			decisions = append(decisions, makeDecision(row, "privacy_policy", "rejected", "Sensitive fragment had no task context.", runID, nil))
-			continue
+		prepared, decision, keep := applyPrivacy(row, runID)
+		if decision != nil {
+			decisions = append(decisions, *decision)
 		}
-		row.Content = secretPattern.ReplaceAllString(row.Content, "[secret redacted]")
-		row.Content = emailPattern.ReplaceAllString(row.Content, "[email redacted]")
-		row.Content = phonePattern.ReplaceAllString(row.Content, "[phone redacted]")
-		row.Actor = "person_local_042"
-		output = append(output, row)
+		if keep {
+			output = append(output, prepared)
+		}
 	}
 	return output, decisions
+}
+
+func applyPrivacy(row pipelineRecord, runID string) (pipelineRecord, *decisionRecord, bool) {
+	if asBool(row.Metadata["sensitive_only"]) {
+		decision := makeDecision(row, "privacy_policy", "rejected", "Sensitive fragment had no task context.", runID, nil)
+		return pipelineRecord{}, &decision, false
+	}
+	row.Content = secretPattern.ReplaceAllString(row.Content, "[secret redacted]")
+	row.Content = emailPattern.ReplaceAllString(row.Content, "[email redacted]")
+	row.Content = phonePattern.ReplaceAllString(row.Content, "[phone redacted]")
+	row.Actor = "person_local_042"
+	return row, nil, true
 }
 
 func qualityFilter(rows []pipelineRecord, runID string) ([]pipelineRecord, []decisionRecord) {
 	output := make([]pipelineRecord, 0, len(rows))
 	var decisions []decisionRecord
 	for _, row := range rows {
-		score := 0.0
-		if row.Content != "" {
-			score += 0.4
+		prepared, decision, keep := applyQuality(row, runID)
+		if decision != nil {
+			decisions = append(decisions, *decision)
 		}
-		if row.Title != "" {
-			score += 0.2
+		if keep {
+			output = append(output, prepared)
 		}
-		if validTimestamp(row.OccurredAt) {
-			score += 0.2
-		}
-		if row.ThreadID != "" {
-			score += 0.2
-		}
-		if score >= 0.75 {
-			score -= float64(eventSuffix(row.EventID)%9) * 0.02
-		}
-		row.QualityScore = round2(score)
-		if row.QualityScore < 0.75 {
-			reason := fmt.Sprintf("Quality score %.2f is below 0.75.", row.QualityScore)
-			decisions = append(decisions, makeDecision(row, "quality_filter", "rejected", reason, runID, nil))
-			continue
-		}
-		output = append(output, row)
 	}
 	return output, decisions
+}
+
+func applyQuality(row pipelineRecord, runID string) (pipelineRecord, *decisionRecord, bool) {
+	score := 0.0
+	if row.Content != "" {
+		score += 0.4
+	}
+	if row.Title != "" {
+		score += 0.2
+	}
+	if validTimestamp(row.OccurredAt) {
+		score += 0.2
+	}
+	if row.ThreadID != "" {
+		score += 0.2
+	}
+	if score >= 0.75 {
+		score -= float64(eventSuffix(row.EventID)%9) * 0.02
+	}
+	row.QualityScore = round2(score)
+	if row.QualityScore < 0.75 {
+		reason := fmt.Sprintf("Quality score %.2f is below 0.75.", row.QualityScore)
+		decision := makeDecision(row, "quality_filter", "rejected", reason, runID, nil)
+		return pipelineRecord{}, &decision, false
+	}
+	return row, nil, true
 }
 
 func extractSignals(rows []pipelineRecord, runID string) ([]pipelineRecord, []decisionRecord) {
 	var signals []pipelineRecord
 	var decisions []decisionRecord
 	for _, row := range rows {
-		var matched *signalRule
-		for index := range signalRules {
-			if signalRules[index].Pattern.MatchString(row.Content) {
-				matched = &signalRules[index]
-				break
-			}
+		prepared, decision, keep := applySignal(row, runID)
+		decisions = append(decisions, decision)
+		if keep {
+			signals = append(signals, prepared)
 		}
-		if matched == nil {
-			decisions = append(decisions, makeDecision(row, "signal_extraction", "rejected", "No supported signal found.", runID, nil))
-			continue
-		}
-		row.SignalType = matched.ID
-		row.ExtractedSignal = matched.Summary
-		row.Reason = matched.Reason
-		row.EvidenceCount = max(1, asInt(row.Metadata["evidence_count"]))
-		if row.EvidenceCount == 1 {
-			row.Confidence = 0.62
-		} else {
-			row.Confidence = round2(0.81 + float64(eventSuffix(row.EventID)%15)/100)
-		}
-		row.Decision = "accepted"
-		if row.Confidence < 0.78 {
-			row.Decision = "review"
-		}
-		row.Privacy = "approved derived record"
-		signals = append(signals, row)
-		confidence := row.Confidence
-		decisions = append(decisions, makeDecision(row, "signal_extraction", row.Decision, row.Reason, runID, &confidence))
 	}
 	return signals, decisions
+}
+
+func applySignal(row pipelineRecord, runID string) (pipelineRecord, decisionRecord, bool) {
+	var matched *signalRule
+	for index := range signalRules {
+		if signalRules[index].Pattern.MatchString(row.Content) {
+			matched = &signalRules[index]
+			break
+		}
+	}
+	if matched == nil {
+		return pipelineRecord{}, makeDecision(row, "signal_extraction", "rejected", "No supported signal found.", runID, nil), false
+	}
+	row.SignalType = matched.ID
+	row.ExtractedSignal = matched.Summary
+	row.Reason = matched.Reason
+	row.EvidenceCount = max(1, asInt(row.Metadata["evidence_count"]))
+	if row.EvidenceCount == 1 {
+		row.Confidence = 0.62
+	} else {
+		row.Confidence = round2(0.81 + float64(eventSuffix(row.EventID)%15)/100)
+	}
+	row.Decision = "accepted"
+	if row.Confidence < 0.78 {
+		row.Decision = "review"
+	}
+	row.Privacy = "approved derived record"
+	confidence := row.Confidence
+	return row, makeDecision(row, "signal_extraction", row.Decision, row.Reason, runID, &confidence), true
 }
 
 func splitSignals(rows []pipelineRecord) ([]pipelineRecord, []pipelineRecord) {
@@ -416,19 +388,28 @@ func writeCuratedCSV(path string, rows []pipelineRecord) error {
 }
 
 func writeCuratedParquet(path string, rows []pipelineRecord) error {
-	published := make([]curatedParquetRow, 0, len(rows))
-	for _, row := range rows {
-		published = append(published, curatedParquetRow{
-			EventID: row.EventID, BatchID: row.BatchID, OccurredAt: row.OccurredAt,
-			SignalType: row.SignalType, ExtractedSignal: row.ExtractedSignal,
-			Confidence: row.Confidence, QualityScore: row.QualityScore, Decision: row.Decision,
-		})
-	}
 	return writeAtomic(path, func(output io.Writer) error {
-		writer := parquet.NewGenericWriter[curatedParquetRow](output)
-		if _, err := writer.Write(published); err != nil {
-			_ = writer.Close()
-			return err
+		writer := parquet.NewGenericWriter[curatedParquetRow](output, parquet.MaxRowsPerRowGroup(8_192))
+		batch := make([]curatedParquetRow, 0, 1_024)
+		for _, row := range rows {
+			batch = append(batch, curatedParquetRow{
+				EventID: row.EventID, BatchID: row.BatchID, OccurredAt: row.OccurredAt,
+				SignalType: row.SignalType, ExtractedSignal: row.ExtractedSignal,
+				Confidence: row.Confidence, QualityScore: row.QualityScore, Decision: row.Decision,
+			})
+			if len(batch) == cap(batch) {
+				if _, err := writer.Write(batch); err != nil {
+					_ = writer.Close()
+					return err
+				}
+				batch = batch[:0]
+			}
+		}
+		if len(batch) > 0 {
+			if _, err := writer.Write(batch); err != nil {
+				_ = writer.Close()
+				return err
+			}
 		}
 		return writer.Close()
 	})

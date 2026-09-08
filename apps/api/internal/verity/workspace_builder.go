@@ -8,6 +8,21 @@ import (
 	"strings"
 )
 
+type pipelineSummary struct {
+	RawCount        int
+	NormalizedCount int
+	PrivacyCount    int
+	QualityCount    int
+	SignalCount     int
+	ReviewCount     int
+	AcceptedCount   int
+	DecisionCount   int
+	FieldCount      int
+	Batches         []BatchSummary
+	SignalSamples   []pipelineRecord
+	Distribution    map[string]int
+}
+
 func buildWorkspace(
 	raw []dataRecord,
 	normalized []pipelineRecord,
@@ -19,36 +34,44 @@ func buildWorkspace(
 	decisionCount int,
 ) Workspace {
 	review, accepted := splitSignals(signals)
+	distribution := make(map[string]int)
+	for _, row := range signals {
+		distribution[row.SignalType]++
+	}
+	return buildWorkspaceFromSummary(runID, artifactDir, pipelineSummary{
+		RawCount: len(raw), NormalizedCount: len(normalized), PrivacyCount: len(private),
+		QualityCount: len(quality), SignalCount: len(signals), ReviewCount: len(review),
+		AcceptedCount: len(accepted), DecisionCount: decisionCount, FieldCount: fieldCount(raw),
+		Batches: summarizeBatches(raw), SignalSamples: signals, Distribution: distribution,
+	})
+}
+
+func buildWorkspaceFromSummary(runID, artifactDir string, summary pipelineSummary) Workspace {
 	stages := []PipelineStage{
-		{ID: "raw", Label: "Raw", Count: len(raw), InputCount: len(raw), Description: "Immutable input records", Operator: "parse_record_v1", Status: "complete"},
-		{ID: "normalize", Label: "Normalize", Count: len(normalized), InputCount: len(raw), Description: "Canonical fields and deduplication", Operator: "normalize_fields_v2", Status: "complete"},
-		{ID: "privacy", Label: "Privacy", Count: len(private), InputCount: len(normalized), Description: "Redaction and policy quarantine", Operator: "privacy_filter_v2", Status: "complete"},
-		{ID: "quality", Label: "Quality", Count: len(quality), InputCount: len(private), Description: "Completeness and validity checks", Operator: "quality_gate_v2", Status: "complete"},
-		{ID: "signals", Label: "Extract", Count: len(signals), InputCount: len(quality), Description: "Structured signal extraction", Operator: "signal_extract_v3", Status: "complete"},
-		{ID: "review", Label: "Review", Count: len(review), InputCount: len(signals), Description: "Uncertain records only", Operator: "review_route_v1", Status: "review"},
-		{ID: "curated", Label: "Ready", Count: len(accepted), InputCount: len(signals), Description: "Versioned output snapshot", Operator: "publish_snapshot_v1", Status: "complete"},
+		{ID: "raw", Label: "Raw", Count: summary.RawCount, InputCount: summary.RawCount, Description: "Immutable input records", Operator: "parse_record_v1", Status: "complete"},
+		{ID: "normalize", Label: "Normalize", Count: summary.NormalizedCount, InputCount: summary.RawCount, Description: "Canonical fields and deduplication", Operator: "normalize_fields_v2", Status: "complete"},
+		{ID: "privacy", Label: "Privacy", Count: summary.PrivacyCount, InputCount: summary.NormalizedCount, Description: "Redaction and policy quarantine", Operator: "privacy_filter_v2", Status: "complete"},
+		{ID: "quality", Label: "Quality", Count: summary.QualityCount, InputCount: summary.PrivacyCount, Description: "Completeness and validity checks", Operator: "quality_gate_v2", Status: "complete"},
+		{ID: "signals", Label: "Extract", Count: summary.SignalCount, InputCount: summary.QualityCount, Description: "Structured signal extraction", Operator: "signal_extract_v3", Status: "complete"},
+		{ID: "review", Label: "Review", Count: summary.ReviewCount, InputCount: summary.SignalCount, Description: "Uncertain records only", Operator: "review_route_v1", Status: "review"},
+		{ID: "curated", Label: "Ready", Count: summary.AcceptedCount, InputCount: summary.SignalCount, Description: "Versioned output snapshot", Operator: "publish_snapshot_v1", Status: "complete"},
 	}
 	for index := range stages {
 		stages[index].Checks = defaultChecks(stages[index])
 	}
 
-	batches := summarizeBatches(raw)
 	generatedAt := generatedTime(runID)
-	distribution := make(map[string]int)
-	for _, row := range signals {
-		distribution[row.SignalType]++
-	}
-	runs := buildRuns(runID, generatedAt, len(raw), len(accepted), len(review))
+	runs := buildRuns(runID, generatedAt, summary.RawCount, summary.AcceptedCount, summary.ReviewCount)
 
-	return Workspace{
+	workspace := Workspace{
 		Dataset: DatasetSummary{
 			ID: "workflow-signals", Name: "Workflow signals",
 			Description: "A reusable dataset prepared from incrementally added batches.",
-			RecordCount: len(raw), FieldCount: fieldCount(raw), BatchCount: len(batches),
+			RecordCount: summary.RawCount, FieldCount: summary.FieldCount, BatchCount: len(summary.Batches),
 			UpdatedAt: generatedAt, Completeness: 94.6, Validity: 97.1, State: "ready",
 			SchemaContract: SchemaContract{Columns: "evolve", DataTypes: "freeze", OnViolation: "quarantine row"},
 		},
-		GeneratedAt: generatedAt, RunID: runID, Batches: batches,
+		GeneratedAt: generatedAt, RunID: runID, Batches: summary.Batches,
 		Recipe: RecipeSummary{
 			ID: "workflow-signals-v12", Name: "Workflow signals recipe", Version: 12,
 			State: "published", UpdatedAt: generatedAt, Operators: defaultOperators(),
@@ -56,19 +79,19 @@ func buildWorkspace(
 		Runs:      runs,
 		RunEvents: []RunEvent{{RunID: runID, EventType: "COMPLETE", EventTime: generatedAt, Job: "workflow-signals-v12"}},
 		Outputs: []OutputSummary{
-			{ID: "out_ready_jsonl", Name: "Ready records", Format: "jsonl", RecordCount: len(accepted), CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "curated.jsonl")), State: "ready"},
-			{ID: "out_ready_csv", Name: "Ready records", Format: "csv", RecordCount: len(accepted), CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "curated.csv")), State: "ready"},
-			{ID: "out_ready_parquet", Name: "Ready records", Format: "parquet", RecordCount: len(accepted), CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "curated.parquet")), State: "ready"},
-			{ID: "out_decisions_jsonl", Name: "Decision lineage", Format: "jsonl", RecordCount: decisionCount, CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "decisions.jsonl")), State: "ready"},
+			{ID: "out_ready_jsonl", Name: "Ready records", Format: "jsonl", RecordCount: summary.AcceptedCount, CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "curated.jsonl")), State: "ready"},
+			{ID: "out_ready_csv", Name: "Ready records", Format: "csv", RecordCount: summary.AcceptedCount, CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "curated.csv")), State: "ready"},
+			{ID: "out_ready_parquet", Name: "Ready records", Format: "parquet", RecordCount: summary.AcceptedCount, CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "curated.parquet")), State: "ready"},
+			{ID: "out_decisions_jsonl", Name: "Decision lineage", Format: "jsonl", RecordCount: summary.DecisionCount, CreatedAt: generatedAt, Size: fileSize(filepath.Join(artifactDir, "decisions.jsonl")), State: "ready"},
 		},
-		Stages: stages, Records: sampleEvidence(signals),
-		DecisionBreakdown: DecisionBreakdown{Accepted: len(accepted), Review: len(review)},
+		Stages: stages, Records: sampleEvidence(summary.SignalSamples),
+		DecisionBreakdown: DecisionBreakdown{Accepted: summary.AcceptedCount, Review: summary.ReviewCount},
 		StepSettings: StepSettings{
 			Operator: "signal_extract_v3", Version: "3", Policy: "local-first redaction",
 			Threshold: 0.78, CodeVersion: "go-engine-v1", InputSnapshot: "quality_" + runID,
 			OutputSnapshot: "signals_" + runID, RunID: runID,
 		},
-		SignalDistribution: distribution,
+		SignalDistribution: summary.Distribution,
 		SchemaBefore: []map[string]string{
 			{"field": "payload", "type": "object", "policy": "local only"},
 			{"field": "metadata", "type": "object", "policy": "optional"},
@@ -85,6 +108,10 @@ func buildWorkspace(
 			"cloud": "Only approved records, aggregate metrics, and decision lineage are publishable.",
 		},
 	}
+	for index := range workspace.Outputs {
+		workspace.Outputs[index].ID += "__" + runID
+	}
+	return workspace
 }
 
 func buildRuns(runID, generatedAt string, rawCount, acceptedCount, reviewCount int) []RunSummary {
