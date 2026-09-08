@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileArrowUpIcon, LockKeyIcon } from "@phosphor-icons/react";
+import { ArrowUpRightIcon, FileArrowUpIcon } from "@phosphor-icons/react";
 import type { ActiveImport } from "./workspace-machine";
 import { stateLabel } from "./workspace-machine";
 
@@ -53,10 +53,10 @@ export function ImportDropzone({ active, disabled, onFiles }: {
       />
       <span className="import-icon"><FileArrowUpIcon size={22} weight="duotone" /></span>
       <span className="import-copy">
-        <strong>{active ? active.filename : "Drop data or choose files"}</strong>
-        <small>{active ? stateLabel(active) : "CSV, JSON, JSONL, TSV, Parquet, or gzip"}</small>
+        <strong>{active ? active.filename : "Drop your data here"}</strong>
+        <small>{active?.state === "ready" ? "Drop another file to start a new run" : active ? stateLabel(active) : "CSV, JSON, JSONL, TSV, Parquet, or gzip"}</small>
       </span>
-      <span className="import-boundary"><LockKeyIcon size={14} /> Local workspace</span>
+      {!disabled ? <span className="import-action">Choose files<ArrowUpRightIcon size={16} /></span> : null}
       {active && active.state === "uploading" ? <span className="import-progress" aria-label={`${progress}% uploaded`}><i style={{ transform: `scaleX(${progress / 100})` }} /></span> : null}
     </div>
   );

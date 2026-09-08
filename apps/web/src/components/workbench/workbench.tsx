@@ -7,6 +7,7 @@ import {
   DotsThreeIcon,
   GearSixIcon,
   PlugsConnectedIcon,
+  ShieldCheckIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { DropdownMenu } from "@radix-ui/themes";
@@ -164,8 +165,8 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
       <header className="workspace-topbar">
         <div className="brand-lockup"><span className="brand-mark">V</span><strong>VERITY</strong></div>
         <div className="topbar-tools">
-          <span className="workspace-switcher">{workspace.dataset.name}</span>
-          <span className="local-state">Self-hosted</span>
+          <span className="workspace-name">{workspace.dataset.name}</span>
+          <span className="local-state"><ShieldCheckIcon size={15} />Self-hosted</span>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger><button className="icon-button" type="button" aria-label="Workspace options"><DotsThreeIcon /></button></DropdownMenu.Trigger>
             <DropdownMenu.Content align="end">
@@ -180,7 +181,7 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
       <section className="workspace-main">
         {notice ? <div className="operation-notice" data-tone={notice.tone} role="status">{notice.tone === "success" ? <CheckCircleIcon weight="fill" /> : <WarningCircleIcon weight="fill" />}{notice.message}<button type="button" aria-label="Dismiss notification" onClick={() => setNotice(null)}>×</button></div> : null}
         <header className="workspace-intro">
-          <div><h1>See every transformation.</h1><p>Drop in raw data. Verity prepares it and shows exactly what changed.</p></div>
+          <div><h1>See every transformation.</h1><p>Drop in raw data. Follow every change, from input to result.</p></div>
           <div className="intro-actions">
             {workspace.decision_breakdown.review > 0 ? <button className="review-button" type="button" onClick={() => void openReview()}>Review {workspace.decision_breakdown.review} items</button> : null}
             <ResultAction workspace={workspace} apiUrl={apiUrl} />

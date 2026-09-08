@@ -1,17 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowRightIcon, CheckCircleIcon, EyeIcon, FunnelIcon, LockKeyIcon, XIcon } from "@phosphor-icons/react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ArrowRightIcon, CheckCircleIcon, FunnelIcon, StackIcon, XIcon } from "@phosphor-icons/react";
 import { Dialog } from "@radix-ui/themes";
 import type { StageComparison, StageComparisonSample } from "@/lib/contracts";
-
-function recordBody(record?: Record<string, unknown>) {
-  if (!record) return undefined;
-  const nested = record.payload;
-  return nested && typeof nested === "object" && !Array.isArray(nested)
-    ? nested as Record<string, unknown>
-    : record;
-}
+import { presentationFields, recordBody } from "./record-presentation";
 
 function valueAt(record: Record<string, unknown> | undefined, keys: string[]) {
   const body = recordBody(record);
@@ -43,12 +36,13 @@ function outcomeLabel(outcome: StageComparisonSample["outcome"]) {
   return "Kept";
 }
 
-function PropertyGrid({ record, changedFields = [], state }: { record?: Record<string, unknown>; changedFields?: string[]; state?: "before" | "after" | "removed" }) {
+function PropertyGrid({ record, fields, changedFields = [], state }: { record?: Record<string, unknown>; fields: string[]; changedFields?: string[]; state?: "before" | "after" | "removed" }) {
   const body = recordBody(record);
   if (!body) return <p className="empty-record">No record at this boundary.</p>;
   return (
     <dl className="record-property-grid">
-      {Object.entries(body).map(([key, value]) => {
+      {fields.filter((key) => Object.hasOwn(body, key)).map((key) => {
+        const value = body[key];
         const changed = state === "removed" || changedFields.includes(key);
         return <div key={key} data-change={changed ? state : undefined}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>;
       })}
@@ -57,6 +51,7 @@ function PropertyGrid({ record, changedFields = [], state }: { record?: Record<s
 }
 
 function ComparisonDialog({ sample, open, onOpenChange }: { sample: StageComparisonSample | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const fields = presentationFields(sample?.before, sample?.after, sample?.changed_fields);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content className="verity-dialog comparison-dialog" maxWidth="900px">
@@ -72,9 +67,16 @@ function ComparisonDialog({ sample, open, onOpenChange }: { sample: StageCompari
               <span>{sample.reason || (sample.changed_fields?.length ? `Changed ${sample.changed_fields.join(", ")}` : "Record passed this boundary unchanged.")}</span>
             </div>
             <div className="comparison-columns">
-              {sample.before ? <section><span>Before</span><PropertyGrid record={sample.before} changedFields={sample.changed_fields} state={sample.outcome === "filtered" ? "removed" : "before"} /></section> : null}
-              <section data-current="true"><span>{sample.before ? "After" : "Record"}</span><PropertyGrid record={sample.after} changedFields={sample.changed_fields} state="after" /></section>
+              {sample.before ? <section><span>Before</span><PropertyGrid record={sample.before} fields={fields.primary} changedFields={sample.changed_fields} state={sample.outcome === "filtered" ? "removed" : "before"} /></section> : null}
+              <section data-current="true"><span>{sample.before ? "After" : "Record"}</span>{sample.after ? <PropertyGrid record={sample.after} fields={fields.primary} changedFields={sample.changed_fields} state="after" /> : <div className="removed-record"><FunnelIcon size={24} /><strong>Not carried forward</strong><p>This record was filtered out at this stage.</p></div>}</section>
             </div>
+            {fields.secondary.length > 0 ? <details className="metadata-disclosure">
+              <summary>{fields.secondary.length} more fields{fields.additionalChanges > 0 ? <span>{fields.additionalChanges} changed</span> : null}</summary>
+              <div className="comparison-columns">
+                {sample.before ? <section><span>Before</span><PropertyGrid record={sample.before} fields={fields.secondary} changedFields={sample.changed_fields} state={sample.outcome === "filtered" ? "removed" : "before"} /></section> : null}
+                {sample.after ? <section><span>{sample.before ? "After" : "Record"}</span><PropertyGrid record={sample.after} fields={fields.secondary} changedFields={sample.changed_fields} state="after" /></section> : null}
+              </div>
+            </details> : null}
             <details className="raw-disclosure"><summary>View source JSON</summary><pre>{JSON.stringify({ before: sample.before, after: sample.after }, null, 2)}</pre></details>
           </div>
         ) : null}
@@ -83,7 +85,7 @@ function ComparisonDialog({ sample, open, onOpenChange }: { sample: StageCompari
   );
 }
 
-export function StageComparisonView({ comparison, loading, error }: { comparison: StageComparison | null; loading: boolean; error: string }) {
+export function StageComparisonView({ comparison, loading, error, browseAction }: { comparison: StageComparison | null; loading: boolean; error: string; browseAction?: ReactNode }) {
   const [filter, setFilter] = useState<"all" | "filtered">("all");
   const [selected, setSelected] = useState<StageComparisonSample | null>(null);
   const hasFiltered = comparison?.samples.some((sample) => sample.outcome === "filtered") ?? false;
@@ -95,8 +97,8 @@ export function StageComparisonView({ comparison, loading, error }: { comparison
   return (
     <div className="stage-records" data-loading={loading}>
       <div className="stage-record-toolbar">
-        <span>Representative records from the current run</span>
-        {hasFiltered ? <div className="view-toggle"><button type="button" data-active={filter === "all"} onClick={() => setFilter("all")}>All</button><button type="button" data-active={filter === "filtered"} onClick={() => setFilter("filtered")}>Filtered out</button></div> : null}
+        <span>Representative records <span className="sample-count">{samples.length}</span></span>
+        {hasFiltered ? <div className="view-toggle"><button type="button" data-active={filter === "all"} aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All</button><button type="button" data-active={filter === "filtered"} aria-pressed={filter === "filtered"} onClick={() => setFilter("filtered")}>Filtered out</button></div> : null}
       </div>
       <div className="stage-record-table-wrap">
         <table className="stage-record-table">
@@ -107,19 +109,19 @@ export function StageComparisonView({ comparison, loading, error }: { comparison
               const context = valueAt(record, ["kind", "type", "event_type", "status", "state"]);
               const reason = sample.reason || (sample.outcome === "input" ? "Captured as received" : sample.changed_fields?.length ? `Changed ${sample.changed_fields.slice(0, 3).join(", ")}` : "Passed unchanged");
               return (
-                <tr key={`${sample.record_id}-${sample.outcome}-${index}`} onClick={() => setSelected(sample)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelected(sample); }}>
+                <tr key={`${sample.record_id}-${sample.outcome}-${index}`} onClick={() => setSelected(sample)} tabIndex={0} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setSelected(sample); } }}>
                   <td><code>{sample.record_id}</code><small>{fieldCount(record)} fields</small></td>
                   <td><strong>{excerpt(record)}</strong>{context ? <small>{context.replaceAll("_", " ")}</small> : null}</td>
-                  <td><span className="outcome-label" data-outcome={sample.outcome}>{sample.outcome === "filtered" ? <FunnelIcon /> : <CheckCircleIcon weight="fill" />}{outcomeLabel(sample.outcome)}</span></td>
+                  <td><span className="outcome-label" data-outcome={sample.outcome}>{sample.outcome === "filtered" ? <FunnelIcon /> : sample.outcome === "input" ? <StackIcon /> : sample.outcome === "routed" ? <ArrowRightIcon /> : <CheckCircleIcon />}{outcomeLabel(sample.outcome)}</span></td>
                   <td><span className="reason-copy">{reason}</span></td>
-                  <td><button className="row-inspect" type="button" aria-label={`Inspect ${sample.record_id}`}><EyeIcon /><ArrowRightIcon /></button></td>
+                  <td><button className="row-inspect" type="button" aria-label={`Inspect ${sample.record_id}`}><ArrowRightIcon size={17} /></button></td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      <footer className="sample-note"><LockKeyIcon />Showing {samples.length} sampled records. Full artifacts stay in the local workspace.</footer>
+      <footer className="sample-note"><span>Showing {samples.length} sampled records</span>{browseAction}</footer>
       <ComparisonDialog sample={selected} open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }} />
     </div>
   );

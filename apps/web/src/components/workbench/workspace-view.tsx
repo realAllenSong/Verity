@@ -48,7 +48,7 @@ export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
   if (!selected) return null;
   const filtered = ["review", "curated"].includes(selected.id) ? 0 : Math.max(0, selected.input_count - selected.count);
   return (
-    <>
+    <div className="data-workspace">
       <section className="flow-section" aria-label="Data pipeline">
         <div className="flow-heading">
           <div>
@@ -61,18 +61,17 @@ export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
       </section>
 
       <section className="inspection-surface">
-        <header className="inspection-heading">
+        <header className="inspection-heading" data-stage={selected.id}>
           <div><h2>{selected.label}</h2><p>{selected.description}</p></div>
           <dl>
-            <div><dt>In</dt><dd>{selected.input_count.toLocaleString()}</dd></div>
-            <div><dt>Out</dt><dd>{selected.count.toLocaleString()}</dd></div>
-            {filtered > 0 ? <div><dt>Removed</dt><dd>{filtered.toLocaleString()}</dd></div> : null}
+            <div><dt>Input</dt><dd>{selected.input_count.toLocaleString()}</dd></div>
+            <div><dt>Output</dt><dd>{selected.count.toLocaleString()}</dd></div>
+            {filtered > 0 ? <div data-filtered="true"><dt>Removed</dt><dd>{filtered.toLocaleString()}</dd></div> : null}
           </dl>
         </header>
-        <StageComparisonView key={selectedID} comparison={comparison} loading={loading} error={error} />
-        {apiUrl ? <div className="browse-stage-action"><RecordBrowser key={comparisonKey} stage={selectedID} apiUrl={apiUrl} /></div> : null}
+        <StageComparisonView key={selectedID} comparison={comparison} loading={loading} error={error} browseAction={apiUrl ? <RecordBrowser key={comparisonKey} stage={selectedID} apiUrl={apiUrl} /> : undefined} />
       </section>
-    </>
+    </div>
   );
 }
 

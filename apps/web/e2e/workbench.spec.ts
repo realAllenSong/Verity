@@ -129,3 +129,62 @@ test("the entire stage can be browsed beyond its representative sample", async (
   await dialog.locator(".browse-record summary").first().click();
   await expect(dialog.locator(".browse-record[open] dl")).toBeVisible();
 });
+
+test("record inspection leads with content and discloses technical fields", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".pipeline-flow").getByRole("button", { name: /Privacy/ }).click();
+  await page.locator(".row-inspect").first().click();
+  const dialog = page.getByRole("dialog");
+  const metadata = dialog.locator(".metadata-disclosure");
+  await expect(metadata).not.toHaveAttribute("open", "");
+  await expect(dialog.locator(".comparison-dialog-body > .comparison-columns")).toBeVisible();
+  await expect(dialog.getByText("Not carried forward", { exact: true })).toBeVisible();
+  await metadata.locator("summary").click();
+  await expect(metadata.locator(".record-property-grid").first()).toBeVisible();
+  await expect(metadata.locator("dt")).not.toHaveCount(0);
+  await dialog.getByText("View source JSON", { exact: true }).click();
+  await expect(dialog.locator(".raw-disclosure pre")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+});
+
+test("keyboard selection works and tablet content stays inside the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 1100 });
+  await page.goto("/");
+  const stage = page.locator(".pipeline-flow").getByRole("button", { name: /Ready/ });
+  await stage.focus();
+  await page.keyboard.press("Enter");
+  await expect(stage).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "Ready", exact: true })).toBeVisible();
+  const record = page.locator(".stage-record-table tbody tr").first();
+  await record.focus();
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(900);
+  await page.screenshot({ path: "../../output/playwright/verity-workbench-tablet.png", fullPage: true, animations: "disabled" });
+});
+
+test("dark appearance and reduced motion carry through the workspace and dialogs", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.goto("/");
+  await expect(page.locator(".stage-record-table tbody tr").first()).toBeVisible();
+  // Next streaming can briefly retain a hidden server fragment during hydration.
+  await expect(page.locator(".single-workspace")).toHaveCount(1);
+  await expect(page.locator(".radix-themes").first()).toHaveClass(/dark/);
+  expect(await page.locator(".single-workspace").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(23, 28, 36)");
+  await page.screenshot({ path: "../../output/playwright/verity-workbench-dark.png", fullPage: true, animations: "disabled" });
+  await page.locator(".pipeline-flow").getByRole("button", { name: /Privacy/ }).click();
+  await page.locator(".row-inspect").first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  expect(await dialog.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 34, 44)");
+  await page.screenshot({ path: "../../output/playwright/verity-record-dark.png", animations: "disabled" });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await expect(page.locator(".radix-themes").first()).toHaveClass(/light/);
+  expect(await dialog.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(254, 254, 254)");
+  expect(errors).toEqual([]);
+});

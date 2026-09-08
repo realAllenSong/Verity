@@ -36,6 +36,20 @@ The Playwright suite verifies the upload-first entry point, real drag-and-drop, 
 
 Go regression tests verify that reviewing a previously unsampled record publishes a new JSONL/CSV/Parquet revision, an exclusion removes it, old snapshots remain addressable and unchanged, and decisions survive restart. Immutable run-stage counts describe the original automated execution; the review badge and downloaded revision describe the current human decisions.
 
+## Visual refinement verification (2026-09-08)
+
+The upload-first workspace was refined using the applicable Taste audit principles and frontend-design guidance, retaining Radix Themes and Geist rather than introducing a second component system. The pipeline and inspection now share one canvas; record content and changed fields precede collapsed technical metadata. All fields and source JSON remain accessible. No data-processing or API contracts changed in this refinement.
+
+Fresh verification after the refinement:
+
+- ESLint passed, and all six frontend unit tests passed.
+- The Next.js production build and all eleven Chromium end-to-end tests passed. These include real CSV drag/drop, automatic processing, every stage, human decisions reflected in downloaded results, full-record pagination, technical-field disclosure, keyboard inspection, 390px mobile and 900px tablet layouts, system appearance changes, and reduced-motion mode.
+- Light/dark desktop, mobile, tablet, and before/after dialog screenshots were visually inspected. Artifacts are generated in `output/playwright/` and are not committed.
+- Token-pair contrast checks: light secondary text on canvas 4.68:1, primary button text 5.97:1, dark secondary text on canvas 6.78:1. These spot checks are not a full accessibility certification.
+- A test initially selected Next.js's temporary hidden streamed fragment as well as the visible page. The regression now waits for the single settled workspace before inspection; no hydration errors occurred in the completed checks.
+
+The backend load results above were not rerun for this frontend-only change. This pass does not add evidence for other browsers or enterprise deployment.
+
 ## Boundaries
 
 - These are local Chromium and synthetic-data tests, not a claim that every browser, connector, or enterprise policy has been validated.

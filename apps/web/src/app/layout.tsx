@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Theme } from "@radix-ui/themes";
+import { AppTheme } from "@/components/app-theme";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import "@radix-ui/themes/styles.css";
 import "./globals.css";
+import "./workbench.css";
 
 export const metadata: Metadata = {
   title: "Verity | White-box data preparation",
@@ -18,9 +19,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
     >
       <body>
-        <Theme accentColor="blue" grayColor="slate" radius="medium" scaling="100%">
+        <AppTheme>
           {children}
-        </Theme>
+        </AppTheme>
       </body>
     </html>
   );
