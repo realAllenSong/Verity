@@ -51,6 +51,7 @@ type persistedState struct {
 type Store struct {
 	mu           sync.RWMutex
 	runGate      sync.Mutex
+	tableGate    sync.Mutex
 	cfg          StoreConfig
 	engine       Engine
 	workspace    Workspace

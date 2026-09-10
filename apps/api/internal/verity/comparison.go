@@ -594,9 +594,11 @@ func changedFields(before, after map[string]any) []string {
 	}
 	changed := make([]string, 0)
 	for key := range keys {
-		left, _ := json.Marshal(before[key])
-		right, _ := json.Marshal(after[key])
-		if string(left) != string(right) {
+		beforeValue, had := before[key]
+		afterValue, has := after[key]
+		left, _ := json.Marshal(beforeValue)
+		right, _ := json.Marshal(afterValue)
+		if had != has || string(left) != string(right) {
 			changed = append(changed, key)
 		}
 	}

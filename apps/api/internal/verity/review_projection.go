@@ -181,6 +181,14 @@ func (s *Store) projectReviewsLocked(workspace Workspace, events []ReviewEvent) 
 		}
 	}
 	workspace.DecisionBreakdown = counts
+	for i := range workspace.Stages {
+		if workspace.Stages[i].ID == "curated" {
+			workspace.Stages[i].Count = counts.Accepted
+		}
+		if workspace.Stages[i].ID == "review" {
+			workspace.Stages[i].Count = counts.Review
+		}
+	}
 	for i, record := range workspace.Records {
 		if event, ok := latest[record.ID]; ok {
 			workspace.Records[i].Decision = event.Decision

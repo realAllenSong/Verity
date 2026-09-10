@@ -289,6 +289,7 @@ func TestOpenAPIContainsEveryPublicOperation(t *testing.T) {
 		"/api/v1/datasets/{dataset_id}/batches", "/api/v1/review-queue",
 		"/api/v1/reviews/{record_id}", "/api/v1/stages/{stage_id}/preview",
 		"/api/v1/stages/{stage_id}/comparison",
+		"/api/v1/stages/{stage_id}/table",
 		"/api/v1/integrations/airbyte/syncs", "/api/v1/integrations/airbyte/jobs/{job_id}",
 	} {
 		if !strings.Contains(string(data), `"`+path+`"`) {

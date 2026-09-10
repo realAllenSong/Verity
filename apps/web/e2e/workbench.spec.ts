@@ -1,112 +1,202 @@
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import os from "node:os";
+import { expect, test, type Page } from "@playwright/test";
 
 const fixture = path.resolve(process.cwd(), "../../sample_data/examples/noisy-workflow-events.csv");
+const shot = (name: string) => path.join(os.tmpdir(), `verity-grid-${name}.png`);
+const dataRows = (page: Page) => page.locator(".data-sheet tbody tr[data-record-id]");
+async function openTable(page: Page) {
+  if (await page.locator(".data-sheet").count() === 0) await page.getByRole("button", { name: "Table", exact: true }).click();
+  await expect(page.locator(".data-sheet")).toBeVisible();
+}
+async function stage(page: Page, name: string) {
+  await page.locator(".pipeline-flow").getByRole("button", { name: new RegExp(name, "i") }).click();
+  await expect(page.locator(".text-reader, .data-sheet").first()).toBeVisible();
+  await openTable(page);
+  await expect(page.getByRole("table", { name: `${name} data table` })).toBeVisible();
+  await expect(page.locator(".transformation-table").first()).toHaveAttribute("data-phase", "settled");
+}
 
-test("the workspace has one obvious upload-first entry point", async ({ page }) => {
+test("one upload-first entry, without extra navigation", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: /Drop data or choose files/i })).toBeVisible();
   await expect(page.locator(".left-rail")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Run pipeline/i })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Stage batch/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Run pipeline|Stage batch/i })).toHaveCount(0);
+  await expect(page.locator(".text-reader")).toBeVisible();
+  await expect(page.locator(".text-record")).toHaveCount(100);
+  await expect(page.getByText("Readable evidence", { exact: true })).toBeVisible();
 });
 
-test("dropping a file starts the same automatic flow", async ({ page }) => {
+test("text sources open as a readable stream with inline word changes", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".pipeline-flow").getByRole("button", { name: /Normalize/ }).click();
+  await expect(page.locator(".text-reader")).toBeVisible();
+  await expect(page.locator(".text-record").first()).toBeVisible();
+  await expect(page.locator('.text-field mark[data-diff="added"], .text-field mark[data-diff="removed"]').first()).toBeVisible();
+  await expect(page.getByText("Changes are marked in the sentence", { exact: false })).toBeVisible();
+  await page.screenshot({ path: shot("reader-desktop"), fullPage: true, animations: "disabled" });
+  await page.screenshot({ path: shot("reader-viewport"), animations: "disabled" });
+  await page.locator(".text-inspect").first().click();
+  await expect(page.getByRole("dialog").locator("pre").first()).not.toBeEmpty();
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await expect(page.getByRole("table", { name: "Normalize data table" })).toBeVisible();
+});
+
+test("dropping data still runs the pipeline automatically", async ({ page }) => {
   await page.goto("/");
   const dropzone = page.locator('.import-surface[data-ready="true"]');
   await expect(dropzone).toBeVisible();
-  await dropzone.evaluate((element) => {
+  await dropzone.evaluate(element => {
     const transfer = new DataTransfer();
-    transfer.items.add(new File([
-      "record_id,kind,occurred_at,title,content\n",
-      "drop_1,agent_steer,2026-09-06T12:00:00Z,Steer,Developer steered the coding agent toward the repository adapter pattern.\n",
-    ], "dropped-workflow.csv", { type: "text/csv", lastModified: 1_788_739_200_000 }));
+    transfer.items.add(new File(["record_id,kind,occurred_at,title,content\ndrop_1,agent_steer,2026-09-06T12:00:00Z,Steer,Developer steered the coding agent toward the repository adapter pattern.\n"], "dropped-workflow.csv", { type: "text/csv", lastModified: 1_788_739_200_000 }));
     element.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
   });
   await expect(page.getByText("dropped-workflow.csv", { exact: true })).toBeVisible();
-  await expect(page.locator(".job-state strong").getByText("Result ready", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(".job-state strong")).toHaveText("Result ready", { timeout: 60_000 });
+  await openTable(page);
+  await expect(dataRows(page)).toHaveCount(100);
 });
 
-test("a CSV upload automatically becomes an inspectable downloadable result", async ({ page }) => {
-  const consoleErrors: string[] = [];
-  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
-  page.on("pageerror", (error) => consoleErrors.push(error.message));
+test("10k noisy CSV to real step diffs and a downloadable result", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   await page.goto("/");
-
   const chooserPromise = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: /Drop data or choose files/i }).click();
-  const chooser = await chooserPromise;
-  await chooser.setFiles(fixture);
-  await expect(page.getByText("noisy-workflow-events.csv", { exact: true })).toBeVisible();
-  await expect(page.locator(".job-state strong").getByText("Result ready", { exact: true })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole("button", { name: /Raw/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Privacy/i })).toBeVisible();
-
-  await page.getByRole("button", { name: /Privacy/i }).click();
-  await expect(page.getByRole("heading", { name: "Privacy", exact: true })).toBeVisible();
-  await expect(page.getByText("Before", { exact: true }).or(page.getByText("Representative records", { exact: false }))).toBeVisible();
-
-  for (const stage of ["Raw", "Normalize", "Privacy", "Quality", "Extract", "Review", "Ready"]) {
-    await page.locator(".pipeline-flow").getByRole("button", { name: new RegExp(stage, "i") }).click();
-    await expect(page.locator(".stage-record-table tbody tr").first()).toBeVisible();
-    await page.locator(".row-inspect").first().click();
-    await expect(page.getByRole("dialog").getByText("One record across this pipeline boundary.")).toBeVisible();
-    if (stage === "Privacy") await page.screenshot({ path: "../../output/playwright/verity-privacy-detail.png", animations: "disabled" });
+  await (await chooserPromise).setFiles(fixture);
+  await expect(page.locator(".job-state strong")).toHaveText("Result ready", { timeout: 60_000 });
+  await openTable(page);
+  await expect(dataRows(page)).toHaveCount(100);
+  await page.screenshot({ path: shot("raw-desktop"), fullPage: true, animations: "disabled" });
+  for (const name of ["Raw", "Normalize", "Privacy", "Quality", "Extract", "Review", "Ready"]) {
+    await stage(page, name);
+    await expect(dataRows(page).first()).toBeVisible();
+    await page.locator(".sheet-record-button").first().click();
+    await expect(page.getByRole("dialog").locator("pre").first()).not.toBeEmpty();
     await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
   }
-  await page.screenshot({ path: "../../output/playwright/verity-workbench-desktop.png", fullPage: true, animations: "disabled" });
-
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: /Download result/i }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/curated\.(parquet|csv|jsonl)/);
-  expect(consoleErrors).toEqual([]);
+  expect((await downloadPromise).suggestedFilename()).toMatch(/curated\.(parquet|csv|jsonl)/);
+  expect(errors).toEqual([]);
 });
 
-test("review is available as a contextual task, not a navigation section", async ({ page }) => {
+test("cell changes are visible without opening one dialog per row", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /Review \d+ items/i }).click();
-  await expect(page.getByRole("dialog").getByRole("heading", { name: "Review uncertain records" })).toBeVisible();
-  await expect(page.getByRole("dialog").getByRole("button", { name: "Accept" }).first()).toBeVisible();
+  await stage(page, "Normalize");
+  await page.getByRole("button", { name: /^Modified \d/ }).click();
+  await page.getByRole("button", { name: "Choose columns" }).click();
+  await page.getByRole("button", { name: "Show all", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator('td[data-cell-change="removed"]').first()).toBeVisible();
+  await page.locator('td[data-cell-change="added"]').first().scrollIntoViewIfNeeded();
+  await expect(page.locator('td[data-cell-change="added"]').first()).toBeVisible();
+  await stage(page, "Privacy");
+  await page.getByRole("button", { name: /^Modified \d/ }).click();
+  await expect(page.locator('td[data-cell-change="changed"]').first()).toBeVisible();
+  const cell = page.locator('td[data-cell-change="changed"] .sheet-cell').first();
+  await expect(cell.locator("del")).not.toBeEmpty();
+  await expect(cell.locator("ins")).not.toBeEmpty();
+  await cell.click();
+  await expect(page.getByLabel("Selected cell details").locator("pre")).toHaveCount(2);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close cell details" }).click();
+  await page.screenshot({ path: shot("privacy-changes"), fullPage: true, animations: "disabled" });
+  await page.getByRole("button", { name: /^Removed \d/ }).click();
+  await expect(dataRows(page).first()).toHaveAttribute("data-change", "removed");
+  await expect(dataRows(page).first().locator("del").first()).toBeVisible();
+  await page.getByRole("button", { name: "After", exact: true }).click();
+  await expect(dataRows(page)).toHaveCount(0);
+  await expect(page.getByText("These rows have no After values.")).toBeVisible();
+  await page.getByRole("button", { name: "Changes", exact: true }).click();
+  await expect(dataRows(page).first()).toBeVisible();
 });
 
-test("mobile keeps upload, pipeline, and contextual actions readable", async ({ page }) => {
+test("complete pagination, global search, columns, wrapping and page-local groups", async ({ page }) => {
+  await page.goto("/");
+  await openTable(page);
+  await expect(dataRows(page)).toHaveCount(100);
+  const first = await dataRows(page).first().getAttribute("data-record-id");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(dataRows(page).first().locator(".sheet-number")).toHaveText("101");
+  await page.getByRole("button", { name: "Previous", exact: true }).click();
+  await expect(dataRows(page).first()).toHaveAttribute("data-record-id", first!);
+  await page.getByRole("button", { name: "Choose columns" }).click();
+  await page.getByRole("button", { name: "Show all", exact: true }).click();
+  await page.keyboard.press("Escape");
+  expect(await page.getByRole("columnheader").count()).toBeGreaterThan(10);
+  await page.getByRole("button", { name: "Wrap", exact: true }).click();
+  await expect(page.locator(".sheet-scroll")).toHaveAttribute("data-wrap", "true");
+  await page.getByLabel("Group this page").selectOption("kind");
+  await expect(page.locator(".sheet-group-row").first()).toContainText("rows on this page");
+  await page.getByLabel("Search all records").fill("no-such-record-391023");
+  await expect(dataRows(page)).toHaveCount(0);
+  await page.getByLabel("Search all records").fill(first!);
+  await expect(dataRows(page).first()).toHaveAttribute("data-record-id", first!);
+});
+
+test("replay uses the real predecessor, then settles on the diff", async ({ page }) => {
+  await page.goto("/");
+  await stage(page, "Privacy");
+  await page.getByRole("button", { name: "Replay change" }).click();
+  await expect(page.locator(".transformation-table")).toHaveAttribute("data-phase", "before");
+  await expect(page.locator(".data-sheet del")).toHaveCount(0);
+  await expect(page.locator(".transformation-table")).toHaveAttribute("data-phase", "settled");
+  await expect(page.locator('td[data-cell-change="changed"]').first()).toBeVisible();
+});
+
+test("expanded sheet, keyboard cell navigation, and mobile containment", async ({ page }) => {
+  await page.goto("/");
+  await openTable(page);
+  await expect(dataRows(page)).toHaveCount(100);
+  const first = page.locator(".sheet-cell").first();
+  await first.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator(".sheet-cell").nth(1)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("Selected cell details")).toBeVisible();
+  await page.getByRole("button", { name: "Close cell details" }).click();
+  await page.getByRole("button", { name: "Expand table" }).click();
+  await expect(page.getByRole("dialog").getByRole("table")).toBeVisible();
+  await page.screenshot({ path: shot("expanded"), animations: "disabled" });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: /Drop data or choose files/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Review \d+ items/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-  await page.screenshot({ path: "../../output/playwright/verity-workbench-mobile.png", fullPage: true });
+  await expect(page.getByRole("button", { name: /Drop data or choose files/i })).toBeVisible();
+  await page.screenshot({ path: shot("mobile"), fullPage: true });
 });
 
-test("review reaches beyond preview samples and updates the downloaded result", async ({ page, request }) => {
+test("review updates the table and downloaded output without stale branches", async ({ page, request }) => {
   await page.goto("/");
   const review = page.getByRole("button", { name: /Review \d+ items/i });
   const before = Number((await review.innerText()).match(/\d+/)?.[0]);
-  expect(before).toBeGreaterThan(10);
   await review.click();
   const dialog = page.getByRole("dialog");
-  let acceptedID = "";
-  for (let index = 0; index < 10; index++) {
-    const card = dialog.locator(".review-card").first();
-    const id = await card.locator("code").innerText();
-    if (index === 9) acceptedID = id;
-    const saved = page.waitForResponse((response) => response.url().includes("/api/v1/reviews/") && response.request().method() === "PATCH");
-    await card.getByRole("button", { name: "Accept", exact: true }).click();
+  let id = "";
+  for (let n = 0; n < 10; n++) {
+    id = await dialog.locator(".review-card code").first().innerText();
+    const saved = page.waitForResponse(response => response.url().includes("/api/v1/reviews/") && response.request().method() === "PATCH");
+    await dialog.getByRole("button", { name: "Accept", exact: true }).first().click();
     expect((await saved).ok()).toBeTruthy();
-    await expect(dialog.locator(".review-card").first().locator("code")).not.toHaveText(id);
+    await expect(dialog.locator(".review-card code").first()).not.toHaveText(id);
   }
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(review).toHaveText(`Review ${before - 10} items`);
+  await stage(page, "Ready");
+  await page.getByLabel("Search all records").fill(id);
+  await expect(dataRows(page).first()).toHaveAttribute("data-record-id", id);
+  await stage(page, "Review");
+  await page.getByLabel("Search all records").fill(id);
+  await expect(dataRows(page)).toHaveCount(0);
   const ws = await (await request.get("http://127.0.0.1:8100/api/v1/workspace")).json();
   const output = ws.outputs.find((item: { format: string; name: string }) => item.format === "jsonl" && item.name === "Ready records");
-  const result = await request.get(`http://127.0.0.1:8100/api/v1/outputs/${output.id}`);
-  expect(result.ok()).toBeTruthy();
-  expect(await result.text()).toContain(`"event_id":"${acceptedID}"`);
+  expect(await (await request.get(`http://127.0.0.1:8100/api/v1/outputs/${output.id}`)).text()).toContain(`"event_id":"${id}"`);
 });
 
-test("secondary workspace actions open useful details", async ({ page }) => {
+test("workspace options remain usable", async ({ page }) => {
   await page.goto("/");
   for (const action of ["Run history", "Workflow details", "Automation"]) {
     await page.getByRole("button", { name: "Workspace options" }).click();
@@ -116,75 +206,26 @@ test("secondary workspace actions open useful details", async ({ page }) => {
   }
 });
 
-test("the entire stage can be browsed beyond its representative sample", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Browse all records" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.locator(".browse-record")).toHaveCount(25);
-  const first = await dialog.locator(".browse-record summary").first().innerText();
-  await dialog.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(dialog.locator(".browse-record summary").first()).not.toHaveText(first);
-  await dialog.getByRole("button", { name: "Previous", exact: true }).click();
-  await expect(dialog.locator(".browse-record summary").first()).toHaveText(first);
-  await dialog.locator(".browse-record summary").first().click();
-  await expect(dialog.locator(".browse-record[open] dl")).toBeVisible();
-});
-
-test("record inspection leads with content and discloses technical fields", async ({ page }) => {
-  await page.goto("/");
-  await page.locator(".pipeline-flow").getByRole("button", { name: /Privacy/ }).click();
-  await page.locator(".row-inspect").first().click();
-  const dialog = page.getByRole("dialog");
-  const metadata = dialog.locator(".metadata-disclosure");
-  await expect(metadata).not.toHaveAttribute("open", "");
-  await expect(dialog.locator(".comparison-dialog-body > .comparison-columns")).toBeVisible();
-  await expect(dialog.getByText("Not carried forward", { exact: true })).toBeVisible();
-  await metadata.locator("summary").click();
-  await expect(metadata.locator(".record-property-grid").first()).toBeVisible();
-  await expect(metadata.locator("dt")).not.toHaveCount(0);
-  await dialog.getByText("View source JSON", { exact: true }).click();
-  await expect(dialog.locator(".raw-disclosure pre")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-});
-
-test("keyboard selection works and tablet content stays inside the viewport", async ({ page }) => {
-  await page.setViewportSize({ width: 900, height: 1100 });
-  await page.goto("/");
-  const stage = page.locator(".pipeline-flow").getByRole("button", { name: /Ready/ });
-  await stage.focus();
-  await page.keyboard.press("Enter");
-  await expect(stage).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("heading", { name: "Ready", exact: true })).toBeVisible();
-  const record = page.locator(".stage-record-table tbody tr").first();
-  await record.focus();
-  await page.keyboard.press("Space");
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(900);
-  await page.screenshot({ path: "../../output/playwright/verity-workbench-tablet.png", fullPage: true, animations: "disabled" });
-});
-
-test("dark appearance and reduced motion carry through the workspace and dialogs", async ({ page }) => {
+test("dark appearance, reduced motion, and network retry", async ({ page }) => {
   const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  page.on("pageerror", error => errors.push(error.message));
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto("/");
-  await expect(page.locator(".stage-record-table tbody tr").first()).toBeVisible();
-  // Next streaming can briefly retain a hidden server fragment during hydration.
+  await openTable(page);
+  await expect(dataRows(page)).toHaveCount(100);
   await expect(page.locator(".single-workspace")).toHaveCount(1);
   await expect(page.locator(".radix-themes").first()).toHaveClass(/dark/);
-  expect(await page.locator(".single-workspace").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(23, 28, 36)");
-  await page.screenshot({ path: "../../output/playwright/verity-workbench-dark.png", fullPage: true, animations: "disabled" });
-  await page.locator(".pipeline-flow").getByRole("button", { name: /Privacy/ }).click();
-  await page.locator(".row-inspect").first().click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-  expect(await dialog.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(28, 34, 44)");
-  await page.screenshot({ path: "../../output/playwright/verity-record-dark.png", animations: "disabled" });
-  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await expect(page.locator(".radix-themes").first()).toHaveClass(/light/);
-  expect(await dialog.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(254, 254, 254)");
+  await stage(page, "Normalize");
+  await page.getByRole("button", { name: "Replay change" }).click();
+  await expect(page.locator(".transformation-table")).toHaveAttribute("data-phase", "settled");
+  await page.screenshot({ path: shot("dark"), fullPage: true, animations: "disabled" });
+  await page.route("**/api/v1/stages/quality/table?**", route => route.fulfill({ status: 503, body: "unavailable" }));
+  await page.locator(".pipeline-flow").getByRole("button", { name: /Quality/ }).click();
+  await expect(page.locator('.sheet-empty[role="alert"]')).toContainText("could not be read");
+  await expect(dataRows(page)).toHaveCount(0);
+  await page.unroute("**/api/v1/stages/quality/table?**");
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await openTable(page);
+  await expect(dataRows(page).first()).toBeVisible();
   expect(errors).toEqual([]);
 });

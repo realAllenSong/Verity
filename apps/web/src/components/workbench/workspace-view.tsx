@@ -1,8 +1,5 @@
 "use client";
 
-import { RecordBrowser } from "./record-browser";
-
-import { useEffect, useState } from "react";
 import {
   CheckCircleIcon,
   DownloadSimpleIcon,
@@ -11,9 +8,9 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { Dialog } from "@radix-ui/themes";
-import type { Decision, EvidenceRecord, StageComparison, WorkspaceData } from "@/lib/contracts";
+import type { Decision, EvidenceRecord, WorkspaceData } from "@/lib/contracts";
 import { PipelineFlow } from "./pipeline-flow";
-import { StageComparisonView } from "./stage-comparison";
+import { TransformationTable } from "./transformation-table";
 
 export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
   workspace: WorkspaceData;
@@ -22,28 +19,9 @@ export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
   apiUrl?: string;
 }) {
   const selected = workspace.stages.find((stage) => stage.id === selectedStageId) ?? workspace.stages[0];
-  const [comparisonState, setComparisonState] = useState<{ key: string; data: StageComparison | null; error: string }>({ key: "", data: null, error: "" });
   const selectedID = selected?.id ?? "";
-  const comparisonKey = `${workspace.run_id}:${selectedID}`;
-  const comparison = comparisonState.key === comparisonKey ? comparisonState.data : null;
-  const error = comparisonState.key === comparisonKey ? comparisonState.error : "";
-  const loading = Boolean(apiUrl) && comparisonState.key !== comparisonKey;
-
-  useEffect(() => {
-    if (!apiUrl || !selectedID) return;
-    const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/stages/${selectedID}/comparison?limit=10`, {
-      cache: "no-store",
-      signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) throw new Error(`comparison returned ${response.status}`);
-      setComparisonState({ key: comparisonKey, data: await response.json() as StageComparison, error: "" });
-    }).catch((failure: unknown) => {
-      if (failure instanceof DOMException && failure.name === "AbortError") return;
-      setComparisonState({ key: comparisonKey, data: null, error: "This snapshot could not be opened." });
-    });
-    return () => controller.abort();
-  }, [apiUrl, comparisonKey, selectedID]);
+  const revision = workspace.outputs.map(output => output.id).join(":");
+  const comparisonKey = `${workspace.run_id}:${selectedID}:${revision}`;
 
   if (!selected) return null;
   const filtered = ["review", "curated"].includes(selected.id) ? 0 : Math.max(0, selected.input_count - selected.count);
@@ -69,7 +47,7 @@ export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
             {filtered > 0 ? <div data-filtered="true"><dt>Removed</dt><dd>{filtered.toLocaleString()}</dd></div> : null}
           </dl>
         </header>
-        <StageComparisonView key={selectedID} comparison={comparison} loading={loading} error={error} browseAction={apiUrl ? <RecordBrowser key={comparisonKey} stage={selectedID} apiUrl={apiUrl} /> : undefined} />
+        <TransformationTable key={comparisonKey} stage={selectedID} runID={workspace.run_id} revision={revision} apiUrl={apiUrl} />
       </section>
     </div>
   );

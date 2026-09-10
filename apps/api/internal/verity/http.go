@@ -57,6 +57,7 @@ func NewHandler(store *Store, cfg HTTPConfig, logger *slog.Logger) http.Handler 
 	mux.HandleFunc("GET /api/v1/stages/{stage_id}/preview", server.stagePreview)
 	mux.HandleFunc("GET /api/v1/stages/{stage_id}/records", server.stageRecords)
 	mux.HandleFunc("GET /api/v1/stages/{stage_id}/comparison", server.stageComparison)
+	mux.HandleFunc("GET /api/v1/stages/{stage_id}/table", server.stageTable)
 	mux.HandleFunc("GET /api/v1/outputs/{output_id}", server.downloadOutput)
 	mux.HandleFunc("POST /api/v1/integrations/airbyte/syncs", server.triggerAirbyteSync)
 	mux.HandleFunc("GET /api/v1/integrations/airbyte/jobs/{job_id}", server.airbyteJob)

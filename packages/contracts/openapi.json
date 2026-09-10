@@ -1199,6 +1199,26 @@
         "summary": "Run Recipe"
       }
     },
+    "/api/v1/stages/{stage_id}/table": {
+      "get": {
+        "operationId": "stage_table",
+        "summary": "Page Through a Complete Transformation Boundary",
+        "description": "Read-only disk-cached before/after pairs, in input order then added rows. Fields and counts cover the full boundary, not the filtered page. Branch routing is not deletion. Sparse searches may return an empty page with a next_cursor. Cursors are snapshot/filter/query-bound. Raw payload fields become columns.",
+        "parameters": [
+          {"in":"path","name":"stage_id","required":true,"schema":{"type":"string","enum":["raw","normalize","privacy","quality","signals","review","curated"]}},
+          {"in":"query","name":"run_id","schema":{"type":"string"},"description":"Optional expected current run. Stale runs return 409."},
+          {"in":"query","name":"cursor","schema":{"type":"string"}},
+          {"in":"query","name":"limit","schema":{"type":"integer","minimum":1,"maximum":100,"default":100}},
+          {"in":"query","name":"filter","schema":{"type":"string","default":"all","enum":["all","changed","removed","added","unchanged","result","elsewhere"]}},
+          {"in":"query","name":"q","schema":{"type":"string","maxLength":200},"description":"Case-insensitive search across serialized records, including before/after values."}
+        ],
+        "responses": {
+          "200":{"description":"run_id, stage_id, previous_stage_id, snapshot, rows (total), fields, counts, records, scanned, and optional next_cursor. Each record has ordinal, record_id, change, outcome, optional before/after objects and reason.","content":{"application/json":{"schema":{"type":"object","required":["run_id","stage_id","snapshot","rows","fields","counts","records","scanned"],"properties":{"run_id":{"type":"string"},"stage_id":{"type":"string"},"snapshot":{"type":"string"},"rows":{"type":"integer"},"fields":{"type":"array","items":{"type":"string"}},"counts":{"type":"object","additionalProperties":{"type":"integer"}},"records":{"type":"array","items":{"type":"object","additionalProperties":true}},"scanned":{"type":"integer"},"next_cursor":{"type":"string"}}}}}},
+          "409":{"description":"Expected snapshot is stale or unavailable."},
+          "422":{"description":"Invalid limit, filter, query or cursor."}
+        }
+      }
+    },
     "/api/v1/stages/{stage_id}/comparison": {
       "get": {
         "operationId": "stage_comparison",

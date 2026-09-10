@@ -14,7 +14,7 @@ The repository is dataset-first. Inputs arrive as independent batches of generic
 - atomic JSONL stage snapshots, CSV and Parquet exports, and JSONL decision lineage
 - a persistent human review loop for uncertain decisions and resumable stage-progress events
 - one upload-first workspace with automatic execution and contextual review
-- per-stage artifact comparisons showing representative input, output, changed fields, and filtering reasons
+- a text-first stage inspector for language-shaped sources, with inline word-level changes plus a spreadsheet-style fallback for structured fields; both views keep complete, paginated before/after pairs, replay, search, column selection and page-local grouping
 - disk-backed deduplication, bounded-memory stage execution, cursor pagination, and checksummed outputs
 - one Go service for the control plane and in-process data plane, with strict requests, atomic local state and artifacts, ETags, readiness, optional bearer auth, structured errors, request IDs, access logs, and graceful shutdown
 - checked-in JSON Schema and OpenAPI contracts
@@ -48,9 +48,9 @@ To exercise the complete white-box flow:
 
 1. Drop `sample_data/examples/noisy-workflow-events.csv` on the first screen, or click the same surface to choose it.
 2. Upload and the default workflow start automatically. No separate run action is required.
-3. Select Raw, Normalize, Privacy, Quality, Extract, Review, and Ready to inspect bounded representative records at every boundary.
-4. Click a record for its before-and-after field view. Use **Filtered out** to isolate removed examples.
-5. Use **Browse all records** to page through the full selected stage, 25 records at a time.
+3. Select Raw, Normalize, Privacy, Quality, Extract, Review, and Ready. Language-shaped sources open in **Reading**: a compact evidence stream shows titles, prose, context and inline word-level changes. **Table** is available whenever you need aligned fields and dense comparison; numeric/metadata-only sources open there automatically.
+4. Switch **Changes / Before / After**. In Reading, changed words are marked in place, while added/removed records are labeled. In Table, modified cells show old and new values, removed cells are struck through, and added cells are highlighted. **Replay change** briefly shows the real predecessor values before revealing the diff; reduced-motion preferences are respected.
+5. Use **Next / Previous**, search across the full boundary, or filter modified/removed/added/output rows. **Columns** exposes every field, including a shortcut for fields changed on this page. **Wrap** and the expand icon give structured data more room. Select **Inspect record** (or a table cell) for complete before/after JSON. Grouping is explicitly page-local, not a whole-dataset aggregation.
 6. Resolve uncertain records from the contextual review button. Every decision publishes a new downloadable snapshot without overwriting earlier outputs.
 
 The sample deliberately contains duplicate IDs, schema aliases, sensitive values, malformed records, unsupported content, low-confidence signals, and accepted signals. It is safe synthetic data and is intended for hands-on validation.
@@ -75,6 +75,16 @@ go run ./cmd/verity import ../../sample_data/examples/noisy-workflow-events.csv 
 ```
 
 See [CLI](docs/cli.md), [MCP](docs/mcp.md), the [verification report](docs/verification.md), and the [Kubernetes/Curvatus handoff](deploy/kubernetes/README.md). A reproducible 100,000-row end-to-end load run is `make load`; the 1,000,000-row profile is `make stress`.
+
+The table API is `GET /api/v1/stages/{stage_id}/table?limit=100&filter=all` (see [OpenAPI](packages/contracts/openapi.json)). The first read builds a disk-backed join of immutable stage artifacts. Later pages seek into a cached JSONL boundary; the entire dataset is never sent to the browser. Cursors are tied to the run/review snapshot, filter and search. A sparse search may return an empty page with a continuation cursor. Full-boundary counts are separate from the current page's groups. Review/Ready routing is not deletion, and reviewed results use the current review revision. The text reader is a presentation layer over these same pairs: it detects prose fields from observed values, caps inline diff work for very long text, and never sends raw records anywhere other than the existing local API.
+
+Caches include original before values and consume additional local disk space. Apply the same access and retention controls as raw stage artifacts. This is a read-only inspection table, not a general editable spreadsheet or an aggregation operator. Existing source artifacts remain unchanged.
+
+Verify the 100,000-row inspection path separately:
+```bash
+cd apps/api
+VERITY_TABLE_LOAD=1 go test ./internal/verity -run TestTableHundredThousandRows -count=1 -v
+```
 
 Or start both services with Docker:
 

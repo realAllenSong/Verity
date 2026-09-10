@@ -6,6 +6,7 @@ const artifactRoot = path.join(os.tmpdir(), `verity-playwright-${process.pid}`);
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: path.join(os.tmpdir(), "verity-grid-test-results"),
   fullyParallel: false,
   workers: 1,
   reporter: "list",

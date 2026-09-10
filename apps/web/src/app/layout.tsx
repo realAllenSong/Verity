@@ -5,6 +5,7 @@ import { GeistSans } from "geist/font/sans";
 import "@radix-ui/themes/styles.css";
 import "./globals.css";
 import "./workbench.css";
+import "./data-sheet.css";
 
 export const metadata: Metadata = {
   title: "Verity | White-box data preparation",
