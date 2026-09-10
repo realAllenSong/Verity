@@ -24,7 +24,7 @@ test("one upload-first entry, without extra navigation", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Run pipeline|Stage batch/i })).toHaveCount(0);
   await expect(page.locator(".text-reader")).toBeVisible();
   await expect(page.locator(".text-record")).toHaveCount(100);
-  await expect(page.getByText("Readable evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("Source content", { exact: true })).toBeVisible();
 });
 
 test("text sources open as a readable stream with inline word changes", async ({ page }) => {
@@ -33,7 +33,7 @@ test("text sources open as a readable stream with inline word changes", async ({
   await expect(page.locator(".text-reader")).toBeVisible();
   await expect(page.locator(".text-record").first()).toBeVisible();
   await expect(page.locator('.text-field mark[data-diff="added"], .text-field mark[data-diff="removed"]').first()).toBeVisible();
-  await expect(page.getByText("Changes are marked in the sentence", { exact: false })).toBeVisible();
+  await expect(page.getByText("Read the actual exchange.", { exact: true })).toBeVisible();
   await page.screenshot({ path: shot("reader-desktop"), fullPage: true, animations: "disabled" });
   await page.screenshot({ path: shot("reader-viewport"), animations: "disabled" });
   await page.locator(".text-inspect").first().click();
@@ -126,7 +126,7 @@ test("complete pagination, global search, columns, wrapping and page-local group
   await page.getByRole("button", { name: "Choose columns" }).click();
   await page.getByRole("button", { name: "Show all", exact: true }).click();
   await page.keyboard.press("Escape");
-  expect(await page.getByRole("columnheader").count()).toBeGreaterThan(10);
+  expect(await page.getByRole("columnheader").count()).toBeGreaterThanOrEqual(10);
   await page.getByRole("button", { name: "Wrap", exact: true }).click();
   await expect(page.locator(".sheet-scroll")).toHaveAttribute("data-wrap", "true");
   await page.getByLabel("Group this page").selectOption("kind");

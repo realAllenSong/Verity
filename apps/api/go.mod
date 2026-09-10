@@ -7,6 +7,7 @@ require (
 	github.com/parquet-go/parquet-go v0.25.1
 	go.etcd.io/bbolt v1.4.3
 	go.temporal.io/sdk v1.44.1
+	golang.org/x/net v0.49.0
 )
 
 require (
@@ -30,7 +31,6 @@ require (
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.temporal.io/api v1.62.12 // indirect
-	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect

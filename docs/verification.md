@@ -36,19 +36,19 @@ The Playwright suite verifies the upload-first entry point, real drag-and-drop, 
 
 Go regression tests verify that reviewing a previously unsampled record publishes a new JSONL/CSV/Parquet revision, an exclusion removes it, old snapshots remain addressable and unchanged, and decisions survive restart. Immutable run-stage counts describe the original automated execution; the review badge and downloaded revision describe the current human decisions.
 
-## Visual refinement verification (2026-09-10)
+## Text preservation verification (2026-09-10)
 
-The upload-first workspace was refined using the applicable Taste audit principles and frontend-design guidance, retaining Radix Themes and Geist rather than introducing a second component system. Language-shaped sources now open in a bounded, text-first evidence reader: titles and prose stay readable, inline word-level changes mark the actual transformation, and structured Table inspection remains one click away. All fields and source JSON remain accessible. No data-processing or API contracts changed in this refinement.
+The upload-first workspace now keeps source language intact through normalization and inspection. Language-shaped sources open in a bounded, text-first evidence reader: prompts, replies, corrections, tool output, email bodies and before/after document text stay readable, inline changes mark the actual transformation, and structured Table inspection remains one click away. Unknown provider fields remain in attributes. Raw, search, dialogs and comparison endpoints use one recursive protected projection. CSV/Parquet publication includes protected content and block structure; JSONL retains the full normalized record. This is still a configurable baseline policy, not enterprise DLP or authorization.
 
 Fresh verification after the refinement:
 
-- ESLint passed, and all eleven frontend unit tests passed.
-- The Next.js production build and all eleven Chromium end-to-end tests passed. These include the default text reader with inline word changes, the Table fallback, real CSV drag/drop, automatic processing, every stage, human decisions reflected in downloaded results, full-record pagination, technical-field disclosure, keyboard inspection, 390px mobile and 900px tablet layouts, system appearance changes, and reduced-motion mode.
+- ESLint passed, all fifteen frontend unit tests passed, and the Go content/privacy regression tests passed.
+- The Next.js production build and all thirteen Chromium end-to-end tests passed. These include the language sample upload, prompt/reply/correction/tool rendering, protected search and dialogs, text-preserving CSV/JSONL export, email HTML-to-text display, before/after document edits, the default reader with inline word changes, real CSV drag/drop, automatic processing, every stage, human decisions, pagination, keyboard inspection, 390px mobile, dark appearance and reduced-motion mode.
 - Light/dark desktop, mobile, tablet, and before/after dialog screenshots were visually inspected. Artifacts are generated in `output/playwright/` and are not committed.
 - Token-pair contrast checks: light secondary text on canvas 4.68:1, primary button text 5.97:1, dark secondary text on canvas 6.78:1. These spot checks are not a full accessibility certification.
 - A test initially selected Next.js's temporary hidden streamed fragment as well as the visible page. The regression now waits for the single settled workspace before inspection; no hydration errors occurred in the completed checks.
 
-The backend load results above were not rerun for this frontend-only change. This pass does not add evidence for other browsers or enterprise deployment.
+The million-row backend load results above were not rerun for this content-contract change. The bounded content/privacy tests use representative nested records; this pass does not add evidence for other browsers or enterprise deployment.
 
 ## Boundaries
 

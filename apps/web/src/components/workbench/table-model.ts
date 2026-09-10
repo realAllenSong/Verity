@@ -2,7 +2,9 @@ import { recordBody } from "./record-presentation";
 import type { StageComparisonSample } from "@/lib/contracts";
 
 export type Change = "input" | "changed" | "removed" | "added" | "unchanged" | "elsewhere";
-export type TableRecord = Omit<StageComparisonSample, "outcome"> & { outcome: string; ordinal: number; change: Change };
+export type ContentBlock = { id: string; role: string; text: string; source_path: string; reply_to?: string; interaction?: string; tool?: string; format?: string };
+export type ReadingDocument = { title?: string; source?: string; blocks: ContentBlock[]; synthetic?: boolean; protected?: boolean };
+export type TableRecord = Omit<StageComparisonSample, "outcome"> & { outcome: string; ordinal: number; change: Change; before_document?: ReadingDocument; after_document?: ReadingDocument };
 export type TablePage = { run_id: string; stage_id: string; snapshot: string; previous_stage_id?: string; rows: number; fields: string[]; counts: Record<string, number>; records: TableRecord[]; next_cursor?: string; scanned: number };
 export type View = "changes" | "before" | "after";
 export type TextDiffPart = { kind: "same" | "removed" | "added"; text: string };

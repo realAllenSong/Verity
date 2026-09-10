@@ -2,7 +2,7 @@
 
 The demo encodes the intended boundary, but it is not a completed enterprise security system.
 
-"Local" means the machine running the Verity API. With localhost deployment that is your laptop; with a cluster deployment uploaded bytes are stored on the server PVC. The workbench deliberately exposes raw and before/after content to its trusted operator. There is no field-level authorization yet, and the demo redactor is not a DLP system. Do not upload real employee, credential, or confidential content to an untrusted or shared deployment. Curated stage JSONL is an internal artifact and may contain source context; compact CSV/Parquet exports are still subject to the source's classification and policy review.
+"Local" means the machine running the Verity API. With localhost deployment that is your laptop; with a cluster deployment uploaded bytes are stored on the server PVC. The workbench shows a protected projection of raw and before/after content to its trusted operator. Explicitly private fragments are replaced with a structural placeholder; credentials, email addresses, phone numbers and common bearer/token fields are redacted recursively. This baseline is not a DLP system and does not replace field-level authorization. Do not upload real employee, credential, or confidential content to an untrusted or shared deployment. Curated stage JSONL and text columns in CSV/Parquet may contain non-sensitive source context and remain subject to policy review.
 
 ## Local-only by default
 

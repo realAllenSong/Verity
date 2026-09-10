@@ -46,14 +46,14 @@ Open `http://127.0.0.1:3000`. The web app uses the checked-in synthetic snapshot
 
 To exercise the complete white-box flow:
 
-1. Drop `sample_data/examples/noisy-workflow-events.csv` on the first screen, or click the same surface to choose it.
+1. Drop `sample_data/examples/noisy-workflow-events.csv` on the first screen, or click **Try a conversation sample** for `sample_data/examples/language-workflow.json` (13 synthetic records with prompts, replies, corrections, tool output, messages, email, tickets, PRs and document edits).
 2. Upload and the default workflow start automatically. No separate run action is required.
 3. Select Raw, Normalize, Privacy, Quality, Extract, Review, and Ready. Language-shaped sources open in **Reading**: a compact evidence stream shows titles, prose, context and inline word-level changes. **Table** is available whenever you need aligned fields and dense comparison; numeric/metadata-only sources open there automatically.
 4. Switch **Changes / Before / After**. In Reading, changed words are marked in place, while added/removed records are labeled. In Table, modified cells show old and new values, removed cells are struck through, and added cells are highlighted. **Replay change** briefly shows the real predecessor values before revealing the diff; reduced-motion preferences are respected.
 5. Use **Next / Previous**, search across the full boundary, or filter modified/removed/added/output rows. **Columns** exposes every field, including a shortcut for fields changed on this page. **Wrap** and the expand icon give structured data more room. Select **Inspect record** (or a table cell) for complete before/after JSON. Grouping is explicitly page-local, not a whole-dataset aggregation.
 6. Resolve uncertain records from the contextual review button. Every decision publishes a new downloadable snapshot without overwriting earlier outputs.
 
-The sample deliberately contains duplicate IDs, schema aliases, sensitive values, malformed records, unsupported content, low-confidence signals, and accepted signals. It is safe synthetic data and is intended for hands-on validation.
+The noisy sample deliberately contains duplicate IDs, schema aliases, sensitive values, malformed records, unsupported content, low-confidence signals, and accepted signals. The language sample is safe synthetic data and is intended for hands-on validation of content preservation. Neither fixture is an export from a company account.
 
 Run unit, contract, lint, and production-build verification with:
 

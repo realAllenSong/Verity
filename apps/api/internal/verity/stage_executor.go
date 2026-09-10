@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/parquet-go/parquet-go"
@@ -346,7 +345,7 @@ func streamSignalStages(ctx context.Context, cfg PipelineConfig, summary *pipeli
 	}
 	defer csvFile.Abort()
 	csvWriter := csv.NewWriter(csvFile.file)
-	if err := csvWriter.Write([]string{"event_id", "batch_id", "occurred_at", "signal_type", "extracted_signal", "confidence", "quality_score", "decision"}); err != nil {
+	if err := csvWriter.Write(curatedCSVHeader); err != nil {
 		return err
 	}
 	parquetFile, err := newAtomicFile(filepath.Join(cfg.ArtifactDir, "curated.parquet"))
@@ -394,10 +393,10 @@ func streamSignalStages(ctx context.Context, cfg PipelineConfig, summary *pipeli
 		if err := curated.Write(prepared); err != nil {
 			return err
 		}
-		if err := csvWriter.Write([]string{prepared.EventID, prepared.BatchID, prepared.OccurredAt, prepared.SignalType, prepared.ExtractedSignal, strconv.FormatFloat(prepared.Confidence, 'f', 2, 64), strconv.FormatFloat(prepared.QualityScore, 'f', 2, 64), prepared.Decision}); err != nil {
+		if err := csvWriter.Write(curatedCSVValues(prepared)); err != nil {
 			return err
 		}
-		parquetRows = append(parquetRows, curatedParquetRow{EventID: prepared.EventID, BatchID: prepared.BatchID, OccurredAt: prepared.OccurredAt, SignalType: prepared.SignalType, ExtractedSignal: prepared.ExtractedSignal, Confidence: prepared.Confidence, QualityScore: prepared.QualityScore, Decision: prepared.Decision})
+		parquetRows = append(parquetRows, curatedProjection(prepared))
 		if len(parquetRows) == cap(parquetRows) {
 			if _, err := parquetWriter.Write(parquetRows); err != nil {
 				return err

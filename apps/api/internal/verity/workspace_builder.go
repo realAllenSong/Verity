@@ -49,10 +49,10 @@ func buildWorkspace(
 func buildWorkspaceFromSummary(runID, artifactDir string, summary pipelineSummary) Workspace {
 	stages := []PipelineStage{
 		{ID: "raw", Label: "Raw", Count: summary.RawCount, InputCount: summary.RawCount, Description: "Immutable input records", Operator: "parse_record_v1", Status: "complete"},
-		{ID: "normalize", Label: "Normalize", Count: summary.NormalizedCount, InputCount: summary.RawCount, Description: "Canonical fields and deduplication", Operator: "normalize_fields_v2", Status: "complete"},
-		{ID: "privacy", Label: "Privacy", Count: summary.PrivacyCount, InputCount: summary.NormalizedCount, Description: "Redaction and policy quarantine", Operator: "privacy_filter_v2", Status: "complete"},
-		{ID: "quality", Label: "Quality", Count: summary.QualityCount, InputCount: summary.PrivacyCount, Description: "Completeness and validity checks", Operator: "quality_gate_v2", Status: "complete"},
-		{ID: "signals", Label: "Extract", Count: summary.SignalCount, InputCount: summary.QualityCount, Description: "Structured signal extraction", Operator: "signal_extract_v3", Status: "complete"},
+		{ID: "normalize", Label: "Normalize", Count: summary.NormalizedCount, InputCount: summary.RawCount, Description: "Preserve text, roles and links; deduplicate record IDs", Operator: "normalize_content_v3", Status: "complete"},
+		{ID: "privacy", Label: "Privacy", Count: summary.PrivacyCount, InputCount: summary.NormalizedCount, Description: "Redaction and policy quarantine", Operator: "privacy_filter_v3", Status: "complete"},
+		{ID: "quality", Label: "Quality", Count: summary.QualityCount, InputCount: summary.PrivacyCount, Description: "Completeness and validity checks", Operator: "quality_gate_v3", Status: "complete"},
+		{ID: "signals", Label: "Extract", Count: summary.SignalCount, InputCount: summary.QualityCount, Description: "Find feedback with source quotes", Operator: "signal_extract_v4", Status: "complete"},
 		{ID: "review", Label: "Review", Count: summary.ReviewCount, InputCount: summary.SignalCount, Description: "Uncertain records only", Operator: "review_route_v1", Status: "review"},
 		{ID: "curated", Label: "Ready", Count: summary.AcceptedCount, InputCount: summary.SignalCount, Description: "Versioned output snapshot", Operator: "publish_snapshot_v1", Status: "complete"},
 	}
@@ -87,8 +87,8 @@ func buildWorkspaceFromSummary(runID, artifactDir string, summary pipelineSummar
 		Stages: stages, Records: sampleEvidence(summary.SignalSamples),
 		DecisionBreakdown: DecisionBreakdown{Accepted: summary.AcceptedCount, Review: summary.ReviewCount},
 		StepSettings: StepSettings{
-			Operator: "signal_extract_v3", Version: "3", Policy: "local-first redaction",
-			Threshold: 0.78, CodeVersion: "go-engine-v1", InputSnapshot: "quality_" + runID,
+			Operator: "signal_extract_v4", Version: "3", Policy: "local-first redaction",
+			Threshold: 0.78, CodeVersion: "go-engine-v2-content", InputSnapshot: "quality_" + runID,
 			OutputSnapshot: "signals_" + runID, RunID: runID,
 		},
 		SignalDistribution: summary.Distribution,
@@ -105,7 +105,7 @@ func buildWorkspaceFromSummary(runID, artifactDir string, summary pipelineSummar
 		},
 		CopyPolicy: map[string]string{
 			"raw":   "Raw payloads remain in the local workspace.",
-			"cloud": "Only approved records, aggregate metrics, and decision lineage are publishable.",
+			"cloud": "No automatic external publication. Exports contain protected source text; review your sharing policy before distributing them.",
 		},
 	}
 	for index := range workspace.Outputs {

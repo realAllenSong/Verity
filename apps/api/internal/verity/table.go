@@ -21,8 +21,10 @@ import (
 
 type TableRow struct {
 	StageComparisonSample
-	Ordinal int    `json:"ordinal"`
-	Change  string `json:"change"`
+	Ordinal        int              `json:"ordinal"`
+	Change         string           `json:"change"`
+	BeforeDocument *ReadingDocument `json:"before_document,omitempty"`
+	AfterDocument  *ReadingDocument `json:"after_document,omitempty"`
 }
 
 type TableMeta struct {
@@ -166,7 +168,16 @@ func (s *Store) Table(ctx context.Context, stage, expectedRun, cursor, filter, q
 			}
 			page.Scanned++
 			match := filter == "all" || filter == row.Change || (filter == "result" && len(row.After) > 0)
-			if match && (query == "" || strings.Contains(strings.ToLower(string(line)), query)) {
+			if !match {
+				continue
+			}
+			row.Before = protectedRaw(row.Before)
+			row.After = protectedRaw(row.After)
+			// Search the same safe projection that is rendered, never hidden values.
+			safeLine, _ := json.Marshal(row)
+			if query == "" || strings.Contains(strings.ToLower(string(safeLine)), query) {
+				row.BeforeDocument = readingDocument(row.Before)
+				row.AfterDocument = readingDocument(row.After)
 				page.Records = append(page.Records, row)
 			}
 		}

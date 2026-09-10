@@ -105,7 +105,7 @@ func TestTemporalWorkflowRunsTheGoPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if workspace.StepSettings.CodeVersion != "go-engine-v1" || workspace.Stages[4].Count != 1086 {
+	if workspace.StepSettings.CodeVersion != "go-engine-v2-content" || workspace.Stages[4].Count != 1086 {
 		t.Fatalf("unexpected Temporal output: %#v", workspace.StepSettings)
 	}
 }

@@ -12,11 +12,13 @@ import type { Decision, EvidenceRecord, WorkspaceData } from "@/lib/contracts";
 import { PipelineFlow } from "./pipeline-flow";
 import { TransformationTable } from "./transformation-table";
 
-export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
+export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl, inspectionQuery, onQuery }: {
   workspace: WorkspaceData;
   selectedStageId: string;
   onStage: (id: string) => void;
   apiUrl?: string;
+  inspectionQuery?: string;
+  onQuery?: (query: string) => void;
 }) {
   const selected = workspace.stages.find((stage) => stage.id === selectedStageId) ?? workspace.stages[0];
   const selectedID = selected?.id ?? "";
@@ -47,7 +49,7 @@ export function WorkspaceView({ workspace, selectedStageId, onStage, apiUrl }: {
             {filtered > 0 ? <div data-filtered="true"><dt>Removed</dt><dd>{filtered.toLocaleString()}</dd></div> : null}
           </dl>
         </header>
-        <TransformationTable key={comparisonKey} stage={selectedID} runID={workspace.run_id} revision={revision} apiUrl={apiUrl} />
+        <TransformationTable key={comparisonKey} stage={selectedID} runID={workspace.run_id} revision={revision} apiUrl={apiUrl} initialQuery={inspectionQuery} onQuery={onQuery} />
       </section>
     </div>
   );

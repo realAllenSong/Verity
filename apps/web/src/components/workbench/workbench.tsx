@@ -33,6 +33,7 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
   const [reviewError, setReviewError] = useState("");
   const [details, setDetails] = useState<DetailView | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [inspectionQuery, setInspectionQuery] = useState("");
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   const busy = activeImport?.state === "uploading" || activeImport?.state === "processing";
 
@@ -115,6 +116,7 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
   }
 
   async function addFiles(files: File[]) {
+    setInspectionQuery("");
     for (const file of files) {
       try {
         await uploadFile(file);
@@ -124,6 +126,18 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
         setNotice({ tone: "error", message });
         break;
       }
+    }
+  }
+
+  async function tryLanguageSample() {
+    try {
+      const sample = await import("../../../../../sample_data/examples/language-workflow.json");
+      await uploadFile(new File([JSON.stringify(sample.default)], "language-workflow.json", { type: "application/json", lastModified: 0 }));
+      setInspectionQuery("language-demo");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The sample could not be imported.";
+      setActiveImport(current => current ? { ...current, state: "failed", error: message } : undefined);
+      setNotice({ tone: "error", message });
     }
   }
 
@@ -192,12 +206,15 @@ export function Workbench({ initialWorkspace }: { initialWorkspace: WorkspaceDat
           <ImportDropzone active={activeImport} disabled={busy} onFiles={(files) => void addFiles(files)} />
           <JobProgress active={activeImport} />
         </div>
+        <div className="language-sample-entry"><button type="button" disabled={busy} onClick={() => void tryLanguageSample()}>Try a conversation sample <span>↗</span></button><span>13 synthetic records · prompts, replies, reviews & document edits</span></div>
 
         <WorkspaceView
           workspace={workspace}
           selectedStageId={selectedStageId}
           onStage={setSelectedStageId}
           apiUrl={apiUrl}
+          inspectionQuery={inspectionQuery}
+          onQuery={setInspectionQuery}
         />
         <PrivacyNote workspace={workspace} />
       </section>

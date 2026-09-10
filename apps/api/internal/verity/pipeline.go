@@ -50,6 +50,9 @@ type pipelineRecord struct {
 	ThreadID           string         `json:"thread_id,omitempty"`
 	Title              string         `json:"title,omitempty"`
 	Content            string         `json:"content,omitempty"`
+	Source             string         `json:"source,omitempty"`
+	ContentBlocks      []ContentBlock `json:"content_blocks,omitempty"`
+	Attributes         map[string]any `json:"attributes,omitempty"`
 	Status             string         `json:"status,omitempty"`
 	Metadata           map[string]any `json:"metadata,omitempty"`
 	ContentFingerprint string         `json:"content_fingerprint"`
@@ -75,17 +78,40 @@ type decisionRecord struct {
 	CreatedAt       string   `json:"created_at"`
 }
 
-// curatedParquetRow is deliberately stable and narrow. Parquet is a published
-// analytics contract, not a dump of local-only payload or metadata fields.
+// Curated CSV/Parquet preserve protected source text and turn structure. JSONL
+// additionally includes provider attributes and provenance metadata.
 type curatedParquetRow struct {
-	EventID         string  `parquet:"event_id" json:"event_id"`
-	BatchID         string  `parquet:"batch_id" json:"batch_id"`
-	OccurredAt      string  `parquet:"occurred_at" json:"occurred_at"`
-	SignalType      string  `parquet:"signal_type" json:"signal_type"`
-	ExtractedSignal string  `parquet:"extracted_signal" json:"extracted_signal"`
-	Confidence      float64 `parquet:"confidence" json:"confidence"`
-	QualityScore    float64 `parquet:"quality_score" json:"quality_score"`
-	Decision        string  `parquet:"decision" json:"decision"`
+	EventID           string   `parquet:"event_id" json:"event_id"`
+	BatchID           string   `parquet:"batch_id" json:"batch_id"`
+	OccurredAt        string   `parquet:"occurred_at" json:"occurred_at"`
+	SignalType        string   `parquet:"signal_type" json:"signal_type"`
+	ExtractedSignal   string   `parquet:"extracted_signal" json:"extracted_signal"`
+	Confidence        *float64 `parquet:"confidence,optional" json:"confidence,omitempty"`
+	QualityScore      float64  `parquet:"quality_score" json:"quality_score"`
+	Decision          string   `parquet:"decision" json:"decision"`
+	Source            string   `parquet:"source" json:"source"`
+	Content           string   `parquet:"content" json:"content"`
+	ContentBlocksJSON string   `parquet:"content_blocks_json" json:"content_blocks_json"`
+}
+
+var curatedCSVHeader = []string{"event_id", "batch_id", "occurred_at", "signal_type", "extracted_signal", "confidence", "quality_score", "decision", "source", "content", "content_blocks_json"}
+
+func curatedProjection(row pipelineRecord) curatedParquetRow {
+	blocks, _ := json.Marshal(row.ContentBlocks)
+	var confidence *float64
+	if row.Confidence != 0 {
+		confidence = &row.Confidence
+	}
+	return curatedParquetRow{EventID: row.EventID, BatchID: row.BatchID, OccurredAt: row.OccurredAt, SignalType: row.SignalType, ExtractedSignal: row.ExtractedSignal, Confidence: confidence, QualityScore: row.QualityScore, Decision: row.Decision, Source: row.Source, Content: row.Content, ContentBlocksJSON: string(blocks)}
+}
+
+func curatedCSVValues(row pipelineRecord) []string {
+	value := curatedProjection(row)
+	confidence := strconv.FormatFloat(row.Confidence, 'f', 2, 64)
+	if row.Confidence == 0 {
+		confidence = ""
+	} // explicit feedback has no calibrated confidence estimate
+	return []string{row.EventID, row.BatchID, row.OccurredAt, row.SignalType, row.ExtractedSignal, confidence, strconv.FormatFloat(row.QualityScore, 'f', 2, 64), row.Decision, row.Source, row.Content, value.ContentBlocksJSON}
 }
 
 type signalRule struct {
@@ -191,8 +217,28 @@ func normalize(records []dataRecord) []pipelineRecord {
 }
 
 func normalizeRecord(record dataRecord) pipelineRecord {
-	content := cleanSpace(footerPattern.ReplaceAllString(firstString(record.Payload, "content", "message", "body", "text"), " "))
+	blocks := contentBlocks(record.Payload)
+	parts := make([]string, 0, len(blocks))
+	for i := range blocks {
+		blocks[i].Text = normalizeText(blocks[i].Text)
+		parts = append(parts, blocks[i].Text)
+	}
+	content := strings.Join(parts, "\n\n")
 	metadata := cloneAnyMap(record.Metadata)
+	if structuredContent(record.Payload) || literal(record.Payload, "source", "source_type", "provider") != "" {
+		metadata["content_profile"] = "structured_text_v1"
+	}
+	if asBool(record.Payload["synthetic"]) {
+		metadata["synthetic"] = true
+	}
+	// Unknown and provider-specific fields are retained, not silently discarded.
+	// These are structured attributes, separate from the readable text contract.
+	attributes := cloneAnyMap(record.Payload)
+	for _, block := range blocks {
+		if _, flat := attributes[block.SourcePath].(string); flat {
+			delete(attributes, block.SourcePath)
+		}
+	}
 	if record.IngestedAt != "" {
 		metadata["ingested_at"] = record.IngestedAt
 	}
@@ -201,18 +247,19 @@ func normalizeRecord(record dataRecord) pipelineRecord {
 			metadata["evidence_count"] = evidenceCount
 		}
 	}
-	if _, exists := metadata["sensitive_only"]; !exists && asBool(record.Payload["sensitive_only"]) {
+	if _, exists := metadata["sensitive_only"]; !exists && privateObject(record.Payload) {
 		metadata["sensitive_only"] = true
 	}
 	digest := sha256.Sum256([]byte(strings.ToLower(content)))
 	return pipelineRecord{
 		EventID: record.RecordID, DatasetID: record.DatasetID, BatchID: record.BatchID,
-		Kind:       strings.ToLower(strings.TrimSpace(defaultString(firstString(record.Payload, "kind", "type", "event_type"), "unknown"))),
-		OccurredAt: firstString(record.Payload, "occurred_at", "timestamp", "created_at", "time"),
-		Actor:      firstString(record.Payload, "actor", "author", "owner"),
-		ThreadID:   firstString(record.Payload, "thread_id", "conversation_id", "ticket_id"),
-		Title:      cleanSpace(firstString(record.Payload, "title", "subject", "name")),
+		Kind:       strings.ToLower(strings.TrimSpace(defaultString(literal(record.Payload, "kind", "type", "event_type"), "unknown"))),
+		OccurredAt: literal(record.Payload, "occurred_at", "timestamp", "created_at", "time"),
+		Actor:      literal(record.Payload, "actor", "author", "owner"),
+		ThreadID:   literal(record.Payload, "thread_id", "conversation_id", "ticket_id"),
+		Title:      cleanSpace(literal(record.Payload, "title", "subject", "name")),
 		Content:    content, Status: firstString(record.Payload, "status", "state"), Metadata: metadata,
+		Source: literal(record.Payload, "source", "source_type", "provider"), ContentBlocks: blocks, Attributes: attributes,
 		ContentFingerprint: hex.EncodeToString(digest[:8]),
 	}
 }
@@ -246,10 +293,17 @@ func applyPrivacy(row pipelineRecord, runID string) (pipelineRecord, *decisionRe
 		decision := makeDecision(row, "privacy_policy", "rejected", "Sensitive fragment had no task context.", runID, nil)
 		return pipelineRecord{}, &decision, false
 	}
-	row.Content = secretPattern.ReplaceAllString(row.Content, "[secret redacted]")
-	row.Content = emailPattern.ReplaceAllString(row.Content, "[email redacted]")
-	row.Content = phonePattern.ReplaceAllString(row.Content, "[phone redacted]")
-	row.Actor = "person_local_042"
+	originalActor := row.Actor
+	data, _ := json.Marshal(row)
+	var protected pipelineRecord
+	_ = json.Unmarshal(protectedRaw(data), &protected)
+	row = protected
+	if row.Actor != "" {
+		digest := sha256.Sum256([]byte(originalActor))
+		row.Actor = "person_" + hex.EncodeToString(digest[:6])
+	}
+	digest := sha256.Sum256([]byte(row.Content))
+	row.ContentFingerprint = hex.EncodeToString(digest[:8])
 	return row, nil, true
 }
 
@@ -269,6 +323,15 @@ func qualityFilter(rows []pipelineRecord, runID string) ([]pipelineRecord, []dec
 }
 
 func applyQuality(row pipelineRecord, runID string) (pipelineRecord, *decisionRecord, bool) {
+	if literal(row.Metadata, "content_profile") == "structured_text_v1" {
+		// Usable content does not require a ticket, timestamp or employee identity.
+		if strings.TrimSpace(row.Content) != "" {
+			row.QualityScore = 1
+			return row, nil, true
+		}
+		decision := makeDecision(row, "quality_filter", "rejected", "No readable text in this text-extraction profile; structured fields remain in Normalize.", runID, nil)
+		return pipelineRecord{}, &decision, false
+	}
 	score := 0.0
 	if row.Content != "" {
 		score += 0.4
@@ -308,6 +371,21 @@ func extractSignals(rows []pipelineRecord, runID string) ([]pipelineRecord, []de
 }
 
 func applySignal(row pipelineRecord, runID string) (pipelineRecord, decisionRecord, bool) {
+	if literal(row.Metadata, "content_profile") == "structured_text_v1" {
+		for _, block := range row.ContentBlocks {
+			if block.Role == "user" && (block.Interaction == "correction" || block.Interaction == "steer" || block.Interaction == "interrupt") && !strings.Contains(block.Text, "[Private content withheld]") {
+				row.SignalType = "explicit_feedback"
+				row.ExtractedSignal = block.Text
+				row.Reason = "Source explicitly labels developer feedback. This is not proof of a successful correction."
+				row.Metadata = cloneAnyMap(row.Metadata)
+				row.Metadata["signal_block_id"] = block.ID
+				row.EvidenceCount = 1
+				row.Decision = "review"
+				return row, makeDecision(row, "signal_extraction", "review", row.Reason, runID, nil), true
+			}
+		}
+		return pipelineRecord{}, makeDecision(row, "signal_extraction", "rejected", "No explicitly labeled developer feedback. Content remains available in Quality; this filter does not measure work value.", runID, nil), false
+	}
 	var matched *signalRule
 	for index := range signalRules {
 		if signalRules[index].Pattern.MatchString(row.Content) {
@@ -374,11 +452,11 @@ func writeJSONLinesAtomic[T any](path string, rows []T) error {
 func writeCuratedCSV(path string, rows []pipelineRecord) error {
 	return writeAtomic(path, func(writer io.Writer) error {
 		csvWriter := csv.NewWriter(writer)
-		if err := csvWriter.Write([]string{"event_id", "batch_id", "occurred_at", "signal_type", "extracted_signal", "confidence", "quality_score", "decision"}); err != nil {
+		if err := csvWriter.Write(curatedCSVHeader); err != nil {
 			return err
 		}
 		for _, row := range rows {
-			if err := csvWriter.Write([]string{row.EventID, row.BatchID, row.OccurredAt, row.SignalType, row.ExtractedSignal, strconv.FormatFloat(row.Confidence, 'f', 2, 64), strconv.FormatFloat(row.QualityScore, 'f', 2, 64), row.Decision}); err != nil {
+			if err := csvWriter.Write(curatedCSVValues(row)); err != nil {
 				return err
 			}
 		}
@@ -392,11 +470,7 @@ func writeCuratedParquet(path string, rows []pipelineRecord) error {
 		writer := parquet.NewGenericWriter[curatedParquetRow](output, parquet.MaxRowsPerRowGroup(8_192))
 		batch := make([]curatedParquetRow, 0, 1_024)
 		for _, row := range rows {
-			batch = append(batch, curatedParquetRow{
-				EventID: row.EventID, BatchID: row.BatchID, OccurredAt: row.OccurredAt,
-				SignalType: row.SignalType, ExtractedSignal: row.ExtractedSignal,
-				Confidence: row.Confidence, QualityScore: row.QualityScore, Decision: row.Decision,
-			})
+			batch = append(batch, curatedProjection(row))
 			if len(batch) == cap(batch) {
 				if _, err := writer.Write(batch); err != nil {
 					_ = writer.Close()

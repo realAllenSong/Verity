@@ -38,7 +38,7 @@ func TestGoPipelineReproducesTheDemoFunnel(t *testing.T) {
 			t.Fatalf("unexpected %s count: got %d, want %d", stage.ID, stage.Count, want[stage.ID])
 		}
 	}
-	if workspace.StepSettings.CodeVersion != "go-engine-v1" {
+	if workspace.StepSettings.CodeVersion != "go-engine-v2-content" {
 		t.Fatalf("workspace was not produced by the Go engine: %s", workspace.StepSettings.CodeVersion)
 	}
 	if _, err := os.Stat(filepath.Join(artifacts, DemoRunID, "curated.csv")); err != nil {

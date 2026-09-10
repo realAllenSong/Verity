@@ -206,7 +206,7 @@ func (s *HTTPServer) workspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("ETag", etag)
-	writeJSON(w, http.StatusOK, s.store.Workspace())
+	writeProtectedJSON(w, http.StatusOK, s.store.Workspace())
 }
 
 func (s *HTTPServer) run(w http.ResponseWriter, r *http.Request) {
@@ -220,7 +220,7 @@ func (s *HTTPServer) run(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, http.StatusInternalServerError, "run_failed", "The data-plane engine did not complete")
 		return
 	}
-	writeJSON(w, http.StatusOK, response)
+	writeProtectedJSON(w, http.StatusOK, response)
 }
 
 func (s *HTTPServer) stageBatch(w http.ResponseWriter, r *http.Request) {
@@ -260,7 +260,7 @@ func (s *HTTPServer) reviewQueue(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, http.StatusInternalServerError, "review_unavailable", "The review queue could not be read")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{
+	writeProtectedJSON(w, http.StatusOK, map[string]interface{}{
 		"count": total, "returned": len(records), "records": records,
 	})
 }
@@ -288,7 +288,7 @@ func (s *HTTPServer) updateReview(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, http.StatusInternalServerError, "review_failed", "The review decision could not be saved")
 		return
 	}
-	writeJSON(w, http.StatusOK, workspace)
+	writeProtectedJSON(w, http.StatusOK, workspace)
 }
 
 func (s *HTTPServer) stagePreview(w http.ResponseWriter, r *http.Request) {
@@ -312,7 +312,7 @@ func (s *HTTPServer) stagePreview(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, http.StatusInternalServerError, "preview_failed", "The stage artifact could not be read")
 		return
 	}
-	writeJSON(w, http.StatusOK, PreviewResponse{StageID: stageID, Count: len(rows), Rows: rows})
+	writeProtectedJSON(w, http.StatusOK, PreviewResponse{StageID: stageID, Count: len(rows), Rows: rows})
 }
 
 func (s *HTTPServer) stageRecords(w http.ResponseWriter, r *http.Request) {
@@ -334,7 +334,7 @@ func (s *HTTPServer) stageRecords(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, http.StatusUnprocessableEntity, "invalid_stage_page", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, page)
+	writeProtectedJSON(w, http.StatusOK, page)
 }
 
 func (s *HTTPServer) downloadOutput(w http.ResponseWriter, r *http.Request) {
@@ -382,7 +382,7 @@ func (s *HTTPServer) stageComparison(w http.ResponseWriter, r *http.Request) {
 		s.problem(w, r, http.StatusInternalServerError, "comparison_failed", "The stage comparison could not be read")
 		return
 	}
-	writeJSON(w, http.StatusOK, response)
+	writeProtectedJSON(w, http.StatusOK, response)
 }
 
 func (s *HTTPServer) triggerAirbyteSync(w http.ResponseWriter, r *http.Request) {

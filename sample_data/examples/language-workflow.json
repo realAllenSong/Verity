@@ -1,0 +1,159 @@
+[
+  {
+    "record_id": "language-demo-codex",
+    "source": "Codex",
+    "kind": "coding_session",
+    "synthetic": true,
+    "title": "Fix retries without changing the client contract",
+    "conversation_id": "sample-session-17",
+    "messages": [
+      {"id": "turn-1", "role": "user", "content": "The client retries every failed request, including validation errors. Update send() so only 429 and 5xx responses are retried. Keep the public method signature unchanged. Add regression tests for a 400 response and a transient 503."},
+      {"id": "turn-2", "role": "assistant", "reply_to": "turn-1", "content": "I will move the retry decision into send() and add a maxRetries argument so callers can configure the behavior."},
+      {"id": "turn-3", "role": "user", "interaction": "correction", "reply_to": "turn-2", "content": "Stop — don't add another argument. Our integrations already depend on this signature. Use the existing RetryPolicy inside the client; only change which responses are eligible for retry."},
+      {"id": "turn-4", "role": "assistant", "reply_to": "turn-3", "content": [
+        {"type": "text", "text": "Understood. I will keep send(request) unchanged and use RetryPolicy.shouldRetry(status)."},
+        {"type": "tool_use", "id": "call-tests", "name": "shell", "input": {"command": "go test ./internal/client -run TestRetry -count=1", "environment": {"API_KEY": "sk-DEMONOTAREALCREDENTIAL12345"}}}
+      ]},
+      {"id": "turn-5", "role": "tool", "type": "tool_result", "tool_use_id": "call-tests", "content": "PASS TestRetrySkips400\nPASS TestRetryRecovers503\nok example/internal/client 0.024s"},
+      {"id": "turn-6", "role": "assistant", "reply_to": "turn-3", "content": "Updated RetryPolicy.shouldRetry and kept send(request) unchanged. The two regression tests passed locally. I have not opened a PR or deployed this change.\n\nNext check: cancellation during the backoff interval."},
+      {"id": "turn-private", "role": "user", "visibility": "private", "content": "PRIVATE_DEMO_DO_NOT_DISPLAY: personal medical appointment details."}
+    ],
+    "workspace": {"project": "Client reliability", "branch": "fix/retry-status", "head": "sample-revision-a1"}
+  },
+  {
+    "record_id": "language-demo-claude",
+    "source": "Claude Code",
+    "kind": "coding_session",
+    "synthetic": true,
+    "title": "Keep document edits local",
+    "messages": [
+      {"id": "local-1", "role": "user", "content": "Parse this slide export locally. Keep the slide number, old text and new text so a reviewer can see what changed. Do not upload the deck."},
+      {"id": "local-2", "role": "assistant", "content": "I can send the deck to a document extraction service and use its summary."},
+      {"id": "local-3", "role": "user", "interaction": "steer", "reply_to": "local-2", "content": "No external service. The input already contains text runs. Compare those runs locally and preserve the original wording."},
+      {"id": "local-4", "role": "assistant", "content": "The parser now emits slide_index, before_text and after_text. It runs locally. A slide with no text is kept as a structured record instead of being called low quality."}
+    ]
+  },
+  {
+    "record_id": "language-demo-harness",
+    "source": "Internal harness",
+    "kind": "agent_exchange",
+    "synthetic": true,
+    "title": "Explain a failing cancellation test",
+    "prompt": "Why does the retry timer fire after the request is canceled? Show the relevant control flow before editing anything.",
+    "response": "The retry branch creates a timer and waits only on timer.C. Cancellation is checked before the timer starts, not while it is waiting. A select on ctx.Done() and timer.C would allow cancellation during backoff. I have not made a change.",
+    "diagnostic": {"test": "TestRetryCancellation", "state": "failing"}
+  },
+  {
+    "record_id": "language-demo-slack",
+    "source": "Slack",
+    "kind": "channel_thread",
+    "synthetic": true,
+    "title": "Should a 400 response ever be retried?",
+    "channel": "client-platform",
+    "messages": [
+      {"id": "slack-1", "role": "message", "author": "Developer A", "text": "I found that validation failures are being retried. Is there any consumer that depends on the existing behavior?"},
+      {"id": "slack-2", "role": "message", "author": "Maintainer B", "reply_to": "slack-1", "text": "No. 400 should be returned immediately. Please keep the method signature stable; several generated clients call it directly."},
+      {"id": "slack-3", "role": "message", "author": "Developer A", "reply_to": "slack-2", "text": "Thanks. The local tests cover 400 and 503. Cancellation coverage is still outstanding; I will add that before requesting review."}
+    ]
+  },
+  {
+    "record_id": "language-demo-email",
+    "source": "Outlook",
+    "kind": "email",
+    "synthetic": true,
+    "subject": "Re: retry behavior for generated clients",
+    "direction": "received",
+    "from": {"emailAddress": {"name": "Sample Maintainer", "address": "maintainer@example.invalid"}},
+    "body": {"contentType": "html", "content": "<p>Please keep <strong>send(request)</strong> stable.</p><p>The consumer rollout is paused until cancellation is covered. A passing local test is enough to request review, but not to mark the rollout complete.</p><p>Contact maintainer@example.invalid for the fixture.</p>"},
+    "attachments": [{"name": "client-contract.txt", "content_collected": false}]
+  },
+  {
+    "record_id": "language-demo-calendar",
+    "source": "Outlook Calendar",
+    "kind": "calendar_event",
+    "synthetic": true,
+    "subject": "Client cancellation review",
+    "body": {"contentType": "text", "content": "Agenda:\n1. Reproduce cancellation during backoff.\n2. Agree on the regression test.\n3. Confirm who can review the patch.\n\nThis is a scheduled agenda, not proof that the meeting happened or the work was completed."},
+    "start": {"dateTime": "2026-09-09T14:00:00", "timeZone": "America/New_York"},
+    "end": {"dateTime": "2026-09-09T14:25:00", "timeZone": "America/New_York"}
+  },
+  {
+    "record_id": "language-demo-jira",
+    "source": "Jira",
+    "kind": "ticket_update",
+    "synthetic": true,
+    "title": "CLIENT-42: stop retrying validation failures",
+    "description": "Expected behavior:\n- Return 400 immediately.\n- Retry 429 and 5xx according to RetryPolicy.\n- Stop waiting when the request is canceled.\n\nAcceptance requires regression coverage for all three cases.",
+    "status": "In review",
+    "status_before": "In progress",
+    "comments": [{"id": "jira-comment-1", "text": "400 and 503 are covered locally. Cancellation is still being checked. Moving to review does not mean the change is released."}],
+    "ticket_id": "CLIENT-42"
+  },
+  {
+    "record_id": "language-demo-github",
+    "source": "GitHub",
+    "kind": "pull_request",
+    "synthetic": true,
+    "title": "PR #42 · Narrow retry eligibility",
+    "description": "Uses the existing RetryPolicy rather than adding an argument to send(). Adds 400 and 503 regression tests.\n\nStill pending: cancellation during backoff.",
+    "state": "open",
+    "comments": [{"id": "review-42", "role": "reviewer", "text": "The response classification looks right. Please add cancellation coverage before merge; otherwise a canceled request can still wait for the retry timer."}],
+    "checks": [{"name": "client-tests", "conclusion": "success"}, {"name": "cancellation-check", "conclusion": "pending"}],
+    "merged": false
+  },
+  {
+    "record_id": "language-demo-wiki",
+    "source": "Confluence",
+    "kind": "document_edit",
+    "synthetic": true,
+    "title": "Retry policy · failure handling",
+    "before": "The client retries failed requests up to three times. Callers can rely on eventual completion.",
+    "after": "The client retries 429 and 5xx responses according to RetryPolicy. Validation failures return immediately. Cancellation stops the retry wait. Retries do not guarantee completion.",
+    "section": "Failure handling"
+  },
+  {
+    "record_id": "language-demo-slides",
+    "source": "PowerPoint",
+    "kind": "slide_edit",
+    "synthetic": true,
+    "title": "Client rollout · slide 4",
+    "before": "Ready for rollout. All reliability checks complete.",
+    "after": "Patch ready for review. 400 / 503 tests pass locally; cancellation verification remains open. Rollout has not started.",
+    "slide_index": 4,
+    "document_name": "client-rollout.pptx"
+  },
+  {
+    "record_id": "language-demo-word",
+    "source": "Word",
+    "kind": "document_edit",
+    "synthetic": true,
+    "title": "Design note · compatibility decision",
+    "before": "Add maxRetries to the public send() method.",
+    "after": "Keep send(request) unchanged. Configure retries through the existing RetryPolicy to avoid breaking generated clients.",
+    "paragraph": 7
+  },
+  {
+    "record_id": "language-demo-excel",
+    "source": "Excel",
+    "kind": "cell_edit",
+    "synthetic": true,
+    "title": "Release checklist · cancellation coverage",
+    "before": "Complete",
+    "after": "Pending regression test",
+    "sheet": "Release checks",
+    "cell": "D12"
+  },
+  {
+    "record_id": "language-demo-usage",
+    "source": "Synaptic Lens",
+    "kind": "usage_aggregate",
+    "synthetic": true,
+    "requests": 24,
+    "input_tokens": 48000,
+    "output_tokens": 7200,
+    "cached_input_tokens": 32000,
+    "estimated_cost_usd": 0.42,
+    "aggregation_scope": "provider-day",
+    "task_link": null
+  }
+]

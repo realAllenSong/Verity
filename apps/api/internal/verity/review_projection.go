@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/parquet-go/parquet-go"
@@ -123,7 +122,7 @@ func (s *Store) projectReviewsLocked(workspace Workspace, events []ReviewEvent) 
 	}
 	defer csvFile.Abort()
 	csvWriter := csv.NewWriter(csvFile.file)
-	if err := csvWriter.Write([]string{"event_id", "batch_id", "occurred_at", "signal_type", "extracted_signal", "confidence", "quality_score", "decision"}); err != nil {
+	if err := csvWriter.Write(curatedCSVHeader); err != nil {
 		return Workspace{}, err
 	}
 	parquetFile, err := newAtomicFile(filepath.Join(directory, "curated.parquet"))
@@ -144,13 +143,11 @@ func (s *Store) projectReviewsLocked(workspace Workspace, events []ReviewEvent) 
 		if row.Decision != "accepted" && row.Decision != "modified" {
 			return nil
 		}
-		projection := curatedParquetRow{EventID: row.EventID, BatchID: row.BatchID, OccurredAt: row.OccurredAt,
-			SignalType: row.SignalType, ExtractedSignal: row.ExtractedSignal, Confidence: row.Confidence,
-			QualityScore: row.QualityScore, Decision: row.Decision}
-		if err := jsonl.Write(projection); err != nil {
+		projection := curatedProjection(row)
+		if err := jsonl.Write(row); err != nil {
 			return err
 		}
-		if err := csvWriter.Write([]string{row.EventID, row.BatchID, row.OccurredAt, row.SignalType, row.ExtractedSignal, strconv.FormatFloat(row.Confidence, 'f', -1, 64), strconv.FormatFloat(row.QualityScore, 'f', -1, 64), row.Decision}); err != nil {
+		if err := csvWriter.Write(curatedCSVValues(row)); err != nil {
 			return err
 		}
 		buffer = append(buffer, projection)
